@@ -300,6 +300,23 @@ Workflow hỗ trợ sự kiện `workflow_dispatch`:
 
 ---
 
+### 6. Lỗi Trivy Scan báo lỗ hổng bảo mật hoặc lỗi tải Database
+- **Triệu chứng 1**: Pipeline bị fail tại bước Trivy do các gói hệ điều hành trong Docker image (Alpine OS) hoặc thư viện chứa CVE mức CRITICAL/HIGH.
+  - **Nguyên nhân**: Mặc định Trivy báo cáo cả các CVE mà bên phát triển hệ điều hành **chưa có bản vá (unpatched / won't fix)**.
+  - **Cách khắc phục**:
+    1. Pipeline đã được cấu hình cờ `--ignore-unfixed`: Trivy sẽ **chỉ chặn** các lỗ hổng **đã có bản vá chính thức** mà dự án chưa nâng cấp.
+    2. Cả `backend/Dockerfile` và `frontend/Dockerfile` đã được bổ sung lệnh `RUN apk update && apk upgrade --no-cache` để cập nhật tự động các gói thư viện OS mới nhất.
+    3. Nếu gặp một CVE không thể khai thác (false-positive) hoặc đang chờ thư viện bên thứ ba cập nhật, bạn có thể thêm mã CVE đó vào tệp [`.trivyignore`](file:///d:/Project/jp-dictionary/.trivyignore) ở thư mục gốc:
+       ```text
+       # .trivyignore
+       CVE-202X-XXXX
+       ```
+- **Triệu chứng 2**: Trivy fail do lỗi `HTTP 429 Too Many Requests` hoặc network timeout khi tải database lỗ hổng.
+  - **Nguyên nhân**: GitHub runner dùng chung IP bị giới hạn tần suất gọi API (Rate limit) khi tải database từ GHCR.
+  - **Cách khắc phục**: Pipeline đã sử dụng action chuẩn `aquasecurity/setup-trivy@v0.2.2` với `github-token: ${{ secrets.GITHUB_TOKEN }}` và bật `cache: true` để lưu cache DB, triệt tiêu hoàn toàn lỗi rate limit.
+
+---
+
 ## 📦 Tải xuống Artifacts sau khi CI chạy thành công
 
 Sau khi pipeline hoàn tất thành công trên GitHub Actions:

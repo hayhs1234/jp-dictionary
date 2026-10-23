@@ -19,8 +19,9 @@ RUN ./mvnw clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine AS runner
 WORKDIR /app
 
-# Security: Run as non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Security: Upgrade Alpine OS packages to patch any base CVEs, then run as non-root user
+RUN apk update && apk upgrade --no-cache && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 # Copy jar artifact from builder stage

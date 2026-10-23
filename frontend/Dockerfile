@@ -17,6 +17,9 @@ RUN npm run build
 # Stage 2: Minimal Production Web Server stage
 FROM nginx:1.27-alpine AS runner
 
+# Security: Upgrade Alpine OS packages to patch any base CVEs
+RUN apk update && apk upgrade --no-cache
+
 # Copy built bundle to Nginx standard directory
 COPY --from=builder /app/dist /usr/share/nginx/html
 

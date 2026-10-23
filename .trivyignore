@@ -1,0 +1,5 @@
+# ==============================================================================
+# TRIVY VULNERABILITY SCANNER IGNORE LIST
+# Danh sách bỏ qua các CVE không thể khai thác (non-exploitable) hoặc false positive
+# Định dạng: CVE-YYYY-NNNN
+# ==============================================================================

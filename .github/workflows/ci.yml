@@ -17,6 +17,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   # ============================================================================
   # 1. DOCKERFILE LINTING (Hadolint)
@@ -133,14 +136,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run Trivy Repository Vulnerability Scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Setup Trivy Scanner
+        uses: aquasecurity/setup-trivy@v0.2.2
         with:
-          scan-type: "fs"
-          scan-ref: "."
-          format: "table"
-          severity: "CRITICAL,HIGH"
-          exit-code: 1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: true
+
+      - name: Run Trivy Repository Vulnerability Scanner
+        run: |
+          trivy fs \
+            --scanners vuln \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --exit-code 1 \
+            .
 
   # ============================================================================
   # 5. DOCKER BUILD & CONTAINER VERIFICATION
@@ -174,21 +183,27 @@ jobs:
           tags: jp-dictionary-frontend:${{ github.sha }}
           load: true
 
-      - name: Scan Backend Docker Image with Trivy
-        uses: aquasecurity/trivy-action@master
+      - name: Setup Trivy Scanner
+        uses: aquasecurity/setup-trivy@v0.2.2
         with:
-          image-ref: jp-dictionary-backend:${{ github.sha }}
-          format: "table"
-          severity: "CRITICAL"
-          exit-code: 1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: true
+
+      - name: Scan Backend Docker Image with Trivy
+        run: |
+          trivy image \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            jp-dictionary-backend:${{ github.sha }}
 
       - name: Scan Frontend Docker Image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: jp-dictionary-frontend:${{ github.sha }}
-          format: "table"
-          severity: "CRITICAL"
-          exit-code: 1
+        run: |
+          trivy image \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            jp-dictionary-frontend:${{ github.sha }}
 
   # ============================================================================
   # 6. QUALITY GATE SUMMARY

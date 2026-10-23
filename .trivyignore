@@ -3,3 +3,14 @@
 # Danh sách bỏ qua các CVE không thể khai thác (non-exploitable) hoặc false positive
 # Định dạng: CVE-YYYY-NNNN
 # ==============================================================================
+
+# CVE-2026-47884: Spring Framework XsltView SSRF/RCE
+# Lý do bỏ qua: Ứng dụng Backend jp-dictionary là Pure REST API (@RestController)
+# chỉ trả về JSON, hoàn toàn không cấu hình ViewResolver, XsltView hay XML view templates.
+# Bản vá yêu cầu Spring 7.0.9+ (Spring Boot 4.x) không tương thích ngược với Spring Boot 3.5.x.
+CVE-2026-47884
+
+# CVE-2026-47890: Spring Framework Server-Sent Events (SSE) stream corruption with view fragments
+# Lý do bỏ qua: Backend chỉ sử dụng REST endpoints thông thường, không sử dụng SSE hay view fragments.
+# Bản vá yêu cầu Spring 7.0.9+ (Spring Boot 4.x).
+CVE-2026-47890

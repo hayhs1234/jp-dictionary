@@ -311,9 +311,14 @@ Workflow hỗ trợ sự kiện `workflow_dispatch`:
        # .trivyignore
        CVE-202X-XXXX
        ```
-- **Triệu chứng 2**: Trivy fail do lỗi `HTTP 429 Too Many Requests` hoặc network timeout khi tải database lỗ hổng.
-  - **Nguyên nhân**: GitHub runner dùng chung IP bị giới hạn tần suất gọi API (Rate limit) khi tải database từ GHCR.
+- **Triệu chứng 2**: Trivy fail do lỗi `HTTP 429 Too Many Requests` khi tải database lỗ hổng từ GHCR.
   - **Cách khắc phục**: Pipeline cài đặt trực tiếp binary Trivy chính thức qua script `install.sh` và truyền `TRIVY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` để xác thực tự động, không phụ thuộc vào action marketplace và triệt tiêu hoàn toàn lỗi rate limit.
+- **Triệu chứng 3**: Trivy fail do `FATAL Error remote Maven repository returned 429 Too Many Requests for spring-data-bom...`.
+  - **Nguyên nhân**: Khi phân tích `pom.xml`, Trivy cố gắng tải các file POM phụ thuộc từ Maven Central (`repo.maven.apache.org`). Do runner của GitHub dùng chung IP mạng với hàng nghìn runner khác, Maven Central sẽ chặn IP (HTTP 429).
+  - **Cách khắc phục**: Pipeline sử dụng cơ chế:
+    1. Chạy sau `backend-ci` để tận dụng cache thư mục `~/.m2`.
+    2. Gọi `mvnw dependency:resolve -B` để nạp sẵn toàn bộ dependencies và POMs vào cache cục bộ.
+    3. Thêm cờ `--offline-scan`: Trivy sẽ đọc dữ liệu trực tiếp từ cache `~/.m2` mà không gửi bất kỳ request nào ra ngoài Maven Central, triệt tiêu hoàn toàn lỗi 429.
 
 ---
 

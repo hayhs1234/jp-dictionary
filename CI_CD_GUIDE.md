@@ -313,7 +313,7 @@ Workflow hỗ trợ sự kiện `workflow_dispatch`:
        ```
 - **Triệu chứng 2**: Trivy fail do lỗi `HTTP 429 Too Many Requests` hoặc network timeout khi tải database lỗ hổng.
   - **Nguyên nhân**: GitHub runner dùng chung IP bị giới hạn tần suất gọi API (Rate limit) khi tải database từ GHCR.
-  - **Cách khắc phục**: Pipeline đã sử dụng action chuẩn `aquasecurity/setup-trivy@v0.2.2` với `github-token: ${{ secrets.GITHUB_TOKEN }}` và bật `cache: true` để lưu cache DB, triệt tiêu hoàn toàn lỗi rate limit.
+  - **Cách khắc phục**: Pipeline cài đặt trực tiếp binary Trivy chính thức qua script `install.sh` và truyền `TRIVY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` để xác thực tự động, không phụ thuộc vào action marketplace và triệt tiêu hoàn toàn lỗi rate limit.
 
 ---
 

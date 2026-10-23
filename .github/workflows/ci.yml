@@ -136,13 +136,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Trivy Scanner
-        uses: aquasecurity/setup-trivy@v0.2.2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          cache: true
+      - name: Install Official Trivy CLI
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          trivy --version
 
       - name: Run Trivy Repository Vulnerability Scanner
+        env:
+          TRIVY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           trivy fs \
             --scanners vuln \
@@ -183,13 +184,14 @@ jobs:
           tags: jp-dictionary-frontend:${{ github.sha }}
           load: true
 
-      - name: Setup Trivy Scanner
-        uses: aquasecurity/setup-trivy@v0.2.2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          cache: true
+      - name: Install Official Trivy CLI
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          trivy --version
 
       - name: Scan Backend Docker Image with Trivy
+        env:
+          TRIVY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           trivy image \
             --severity CRITICAL \
@@ -198,6 +200,8 @@ jobs:
             jp-dictionary-backend:${{ github.sha }}
 
       - name: Scan Frontend Docker Image with Trivy
+        env:
+          TRIVY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           trivy image \
             --severity CRITICAL \

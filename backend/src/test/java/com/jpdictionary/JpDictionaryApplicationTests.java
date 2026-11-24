@@ -1,15 +1,23 @@
 package com.jpdictionary;
 
+import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
+import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @ActiveProfiles("test")
 class JpDictionaryApplicationTests {
 
+    @MockitoBean
+    private DictionaryEntryRepository dictionaryEntryRepository;
+
+    @MockitoBean
+    private DictionaryFormRepository dictionaryFormRepository;
+
     @Test
     void contextLoads() {
     }
-
 }

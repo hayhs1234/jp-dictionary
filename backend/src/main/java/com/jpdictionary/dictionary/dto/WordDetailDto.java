@@ -25,6 +25,9 @@ public class WordDetailDto {
     private String detailedMeaning;
 
     @Builder.Default
+    private List<WordSenseDto> senses = new ArrayList<>();
+
+    @Builder.Default
     private List<FuriganaSegmentDto> furiganaSegments = new ArrayList<>();
 
     @Builder.Default

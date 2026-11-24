@@ -7,6 +7,7 @@ import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
 import com.jpdictionary.dictionary.dto.SuggestionDto;
 import com.jpdictionary.dictionary.dto.SynonymDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
+import com.jpdictionary.dictionary.dto.WordSenseDto;
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
@@ -202,35 +203,15 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     private WordDetailDto mapToWordDetail(DictionaryEntry entry) {
-        String kanji = entry.getForms().stream()
-                .filter(DictionaryForm::getIsPrimary)
-                .map(DictionaryForm::getWrittenForm)
-                .findFirst()
-                .orElse(entry.getForms().isEmpty() ? "" : entry.getForms().get(0).getWrittenForm());
-
-        DictionaryReading primaryReading = entry.getReadings().stream()
-                .filter(DictionaryReading::getIsPrimary)
-                .findFirst()
-                .orElse(entry.getReadings().isEmpty() ? null : entry.getReadings().get(0));
-
+        String kanji = extractPrimaryKanji(entry);
+        DictionaryReading primaryReading = extractPrimaryReading(entry);
         String hiragana = primaryReading != null ? primaryReading.getReading() : "";
         String romaji = primaryReading != null ? primaryReading.getRomaji() : "";
 
-        DictionarySense primarySense = entry.getSenses().stream().findFirst().orElse(null);
-        String pos = primarySense != null ? primarySense.getPartOfSpeech() : "";
-
-        String primaryMeaning = "";
-        String detailedMeaning = "";
-        if (primarySense != null && !primarySense.getGlosses().isEmpty()) {
-            Optional<SenseGloss> viGloss = primarySense.getGlosses().stream()
-                    .filter(g -> "vi".equalsIgnoreCase(g.getLanguageCode()))
-                    .findFirst();
-            primaryMeaning = viGloss.map(SenseGloss::getMeaning)
-                    .orElse(primarySense.getGlosses().get(0).getMeaning());
-            detailedMeaning = primarySense.getNotes() != null
-                    ? primarySense.getNotes()
-                    : primaryMeaning;
-        }
+        List<WordSenseDto> senseDtos = mapSenses(entry.getSenses());
+        String primaryMeaning = resolvePrimaryMeaning(senseDtos);
+        String detailedMeaning = resolveDetailedMeaning(senseDtos, primaryMeaning);
+        String pos = resolvePrimaryPos(senseDtos);
 
         String jlptStr = entry.getJlptLevel() != null ? "N" + entry.getJlptLevel() : "N/A";
         String hanViet = deriveHanViet(kanji);
@@ -250,11 +231,95 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .partOfSpeech(pos)
                 .primaryMeaning(primaryMeaning)
                 .detailedMeaning(detailedMeaning)
+                .senses(senseDtos)
                 .furiganaSegments(segments)
                 .kanjiBreakdown(kanjiList)
                 .examples(exampleDtos)
                 .synonyms(buildDefaultSynonyms(kanji))
                 .build();
+    }
+
+    private String extractPrimaryKanji(DictionaryEntry entry) {
+        return entry.getForms().stream()
+                .filter(DictionaryForm::getIsPrimary)
+                .map(DictionaryForm::getWrittenForm)
+                .findFirst()
+                .orElse(entry.getForms().isEmpty() ? "" : entry.getForms().get(0).getWrittenForm());
+    }
+
+    private DictionaryReading extractPrimaryReading(DictionaryEntry entry) {
+        return entry.getReadings().stream()
+                .filter(DictionaryReading::getIsPrimary)
+                .findFirst()
+                .orElse(entry.getReadings().isEmpty() ? null : entry.getReadings().get(0));
+    }
+
+    private List<WordSenseDto> mapSenses(List<DictionarySense> senses) {
+        if (senses == null) {
+            return Collections.emptyList();
+        }
+        List<WordSenseDto> dtos = new ArrayList<>();
+        for (int i = 0; i < senses.size(); i++) {
+            dtos.add(mapSingleSense(senses.get(i), i + 1));
+        }
+        return dtos;
+    }
+
+    private WordSenseDto mapSingleSense(DictionarySense sense, int defaultOrder) {
+        String pos = sense.getPartOfSpeech() != null ? sense.getPartOfSpeech() : "";
+        List<String> viGlosses = extractGlossesByLanguage(sense, "vi");
+        List<String> enGlosses = extractGlossesByLanguage(sense, "en");
+
+        String meaning = resolveSenseMeaning(viGlosses, enGlosses, sense);
+        String notes = sense.getNotes() != null ? sense.getNotes() : "";
+        int order = sense.getSenseOrder() != null ? sense.getSenseOrder() : defaultOrder;
+
+        return WordSenseDto.builder()
+                .senseOrder(order)
+                .partOfSpeech(pos)
+                .meaning(meaning)
+                .detailedMeaning(notes)
+                .glosses(viGlosses)
+                .englishGlosses(enGlosses)
+                .build();
+    }
+
+    private List<String> extractGlossesByLanguage(DictionarySense sense, String langCode) {
+        return sense.getGlosses().stream()
+                .filter(g -> langCode.equalsIgnoreCase(g.getLanguageCode()))
+                .map(SenseGloss::getMeaning)
+                .toList();
+    }
+
+    private String resolveSenseMeaning(List<String> viGlosses,
+                                       List<String> enGlosses,
+                                       DictionarySense sense) {
+        if (!viGlosses.isEmpty()) {
+            return String.join("; ", viGlosses);
+        }
+        if (!enGlosses.isEmpty()) {
+            return String.join("; ", enGlosses);
+        }
+        if (!sense.getGlosses().isEmpty()) {
+            return sense.getGlosses().get(0).getMeaning();
+        }
+        return "";
+    }
+
+    private String resolvePrimaryMeaning(List<WordSenseDto> senses) {
+        return senses.isEmpty() ? "" : senses.get(0).getMeaning();
+    }
+
+    private String resolveDetailedMeaning(List<WordSenseDto> senses, String defaultMeaning) {
+        if (senses.isEmpty()) {
+            return defaultMeaning;
+        }
+        String detailed = senses.get(0).getDetailedMeaning();
+        return (detailed != null && !detailed.isEmpty()) ? detailed : defaultMeaning;
+    }
+
+    private String resolvePrimaryPos(List<WordSenseDto> senses) {
+        return senses.isEmpty() ? "" : senses.get(0).getPartOfSpeech();
     }
 
     private String derivePitchAccent(String pos) {

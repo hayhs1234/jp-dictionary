@@ -14,6 +14,17 @@ const FALLBACK_WORDS = [
     primaryMeaning: 'Ánh nắng lọt qua kẽ lá',
     detailedMeaning:
       'Hiện tượng quang học và mỹ học tự nhiên khi ánh sáng mặt trời chiếu xuyên qua vòm tán lá cây rậm rạp tạo thành những vệt sáng lấp lánh đan xen trên mặt đất hoặc bờ tường.',
+    senses: [
+      {
+        senseOrder: 1,
+        partOfSpeech: 'Danh từ [名]',
+        meaning: 'Ánh nắng lọt qua kẽ lá',
+        detailedMeaning:
+          'Hiện tượng quang học và mỹ học tự nhiên khi ánh sáng mặt trời chiếu xuyên qua vòm tán lá cây rậm rạp tạo thành những vệt sáng lấp lánh đan xen trên mặt đất hoặc bờ tường.',
+        glosses: ['Ánh nắng lọt qua kẽ lá'],
+        englishGlosses: ['sunlight filtering through trees'],
+      },
+    ],
     furiganaSegments: [
       { ruby: '木', rt: 'こ' },
       { ruby: '漏', rt: 'れ' },
@@ -101,6 +112,26 @@ const FALLBACK_WORDS = [
     primaryMeaning: 'ăn, dùng bữa',
     detailedMeaning:
       'Hành động nhai và nuốt thức ăn để nạp dinh dưỡng; dùng bữa sáng, trưa hoặc tối.',
+    senses: [
+      {
+        senseOrder: 1,
+        partOfSpeech: 'Động từ nhóm 2 [動]',
+        meaning: 'ăn, dùng bữa',
+        detailedMeaning:
+          'Hành động nhai và nuốt thức ăn để nạp dinh dưỡng; dùng bữa sáng, trưa hoặc tối.',
+        glosses: ['ăn', 'dùng bữa'],
+        englishGlosses: ['to eat'],
+      },
+      {
+        senseOrder: 2,
+        partOfSpeech: 'Động từ nhóm 2 [動]',
+        meaning: 'kiếm sống, mưu sinh',
+        detailedMeaning:
+          'Kiếm kế sinh nhai qua một nghề nghiệp hoặc nguồn thu nhập (ví dụ: 音楽で食べていく - sống bằng nghề âm nhạc).',
+        glosses: ['kiếm sống', 'mưu sinh'],
+        englishGlosses: ['to live on', 'to make a living'],
+      },
+    ],
     furiganaSegments: [
       { ruby: '食', rt: 'た' },
       { ruby: 'べる', rt: '' },
@@ -326,6 +357,90 @@ const FALLBACK_WORDS = [
         word: '教師 (きょうし)',
         reading: 'きょうし',
         meaning: 'Giáo viên (nghề nghiệp)',
+        type: 'synonym',
+      },
+    ],
+  },
+  {
+    id: 18,
+    kanji: '直す',
+    hiragana: 'なおす',
+    romaji: 'naosu',
+    hanViet: 'TRỰC',
+    pitchAccent: '[2] 頭高',
+    jlptLevel: 'N4',
+    partOfSpeech: 'Động từ nhóm 1 [動]',
+    primaryMeaning: 'sửa chữa, chỉnh sửa',
+    detailedMeaning:
+      'Sửa chữa đồ vật bị hư hỏng hoặc khôi phục về trạng thái hoạt động tốt ban đầu.',
+    senses: [
+      {
+        senseOrder: 1,
+        partOfSpeech: 'Động từ nhóm 1 [動]',
+        meaning: 'sửa chữa, chỉnh sửa (đồ vật hỏng)',
+        detailedMeaning:
+          'Sửa chữa đồ vật bị hư hỏng hoặc khôi phục về trạng thái hoạt động tốt ban đầu.',
+        glosses: ['sửa chữa', 'chỉnh sửa'],
+        englishGlosses: ['to repair', 'to fix'],
+      },
+      {
+        senseOrder: 2,
+        partOfSpeech: 'Động từ nhóm 1 [動]',
+        meaning: 'đính chính, sửa lỗi sai, chữa trị',
+        detailedMeaning:
+          'Đính chính lỗi chính tả, sửa phát âm hoặc chữa khỏi thói quen xấu/bệnh tật.',
+        glosses: ['đính chính', 'sửa sai', 'chữa trị'],
+        englishGlosses: ['to correct', 'to rectify', 'to cure'],
+      },
+      {
+        senseOrder: 3,
+        partOfSpeech: 'Động từ nhóm 1 [動]',
+        meaning: 'dịch thuật, quy đổi',
+        detailedMeaning:
+          'Dịch sang một ngôn ngữ khác hoặc chuyển đổi đơn vị đo lường/tiền tệ.',
+        glosses: ['dịch sang ngôn ngữ khác', 'quy đổi đơn vị'],
+        englishGlosses: ['to translate', 'to convert'],
+      },
+      {
+        senseOrder: 4,
+        partOfSpeech: 'Trợ động từ [接尾]',
+        meaning: 'làm lại từ đầu (sau V-masu)',
+        detailedMeaning:
+          'Làm lại một hành động từ đầu để đạt kết quả tốt hơn (VD: 書き直す - viết lại).',
+        glosses: ['làm lại từ đầu'],
+        englishGlosses: ['to redo', 'to do over again'],
+      },
+    ],
+    furiganaSegments: [
+      { ruby: '直', rt: 'なお' },
+      { ruby: 'す', rt: '' },
+    ],
+    kanjiBreakdown: [
+      {
+        character: '直',
+        strokeCount: 8,
+        jlptLevel: 'Cấp độ N4',
+        hanViet: 'TRỰC (Ngay thẳng, sửa)',
+        onReadings: 'チョク, ジキ',
+        kunReadings: 'なお-す, なお-る',
+        meaning: 'Ngay thẳng, trực tiếp, sửa chữa, đính chính.',
+      },
+    ],
+    examples: [
+      {
+        id: 118,
+        japaneseText: '壊れた時計を自分で直しました。',
+        reading: 'こわれたとけいをじぶんでなおしました。',
+        translation: 'Tôi đã tự mình sửa chiếc đồng hồ bị hỏng.',
+        context: 'Đời sống thường nhật',
+        level: 'Sơ cấp N4',
+      },
+    ],
+    synonyms: [
+      {
+        word: '修理する (しゅうりする)',
+        reading: 'しゅうりする',
+        meaning: 'Sửa chữa (máy móc, thiết bị kỹ thuật)',
         type: 'synonym',
       },
     ],

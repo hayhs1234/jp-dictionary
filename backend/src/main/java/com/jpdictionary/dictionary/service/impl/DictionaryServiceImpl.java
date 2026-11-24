@@ -345,17 +345,11 @@ public class DictionaryServiceImpl implements DictionaryService {
         return sb.toString();
     }
 
-    private List<FuriganaSegmentDto> buildFuriganaSegments(String kanji, String hiragana) {
-        List<FuriganaSegmentDto> list = new ArrayList<>();
-        if (kanji == null || kanji.isEmpty()) {
-            return list;
-        }
-        if (hiragana == null || hiragana.isEmpty() || kanji.equals(hiragana)) {
-            list.add(new FuriganaSegmentDto(kanji, ""));
-            return list;
-        }
+    private boolean requiresFurigana(String kanji, String hiragana) {
+        return hiragana != null && !hiragana.isEmpty() && !kanji.equals(hiragana);
+    }
 
-        // Dynamic okurigana matching: find common trailing kana
+    private int calculateCommonSuffixLength(String kanji, String hiragana) {
         int kLen = kanji.length();
         int hLen = hiragana.length();
         int suffixLen = 0;
@@ -363,18 +357,30 @@ public class DictionaryServiceImpl implements DictionaryService {
                 && kanji.charAt(kLen - 1 - suffixLen) == hiragana.charAt(hLen - 1 - suffixLen)) {
             suffixLen++;
         }
+        return suffixLen;
+    }
 
+    private List<FuriganaSegmentDto> buildFuriganaSegments(String kanji, String hiragana) {
+        if (kanji == null || kanji.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (!requiresFurigana(kanji, hiragana)) {
+            return List.of(new FuriganaSegmentDto(kanji, ""));
+        }
+
+        int suffixLen = calculateCommonSuffixLength(kanji, hiragana);
+        int kLen = kanji.length();
+        int hLen = hiragana.length();
         if (suffixLen > 0 && suffixLen < kLen && suffixLen < hLen) {
             String kanjiStem = kanji.substring(0, kLen - suffixLen);
             String hiraganaStem = hiragana.substring(0, hLen - suffixLen);
             String okurigana = kanji.substring(kLen - suffixLen);
-            list.add(new FuriganaSegmentDto(kanjiStem, hiraganaStem));
-            list.add(new FuriganaSegmentDto(okurigana, ""));
-            return list;
+            return List.of(
+                    new FuriganaSegmentDto(kanjiStem, hiraganaStem),
+                    new FuriganaSegmentDto(okurigana, ""));
         }
 
-        list.add(new FuriganaSegmentDto(kanji, hiragana));
-        return list;
+        return List.of(new FuriganaSegmentDto(kanji, hiragana));
     }
 
     private List<SynonymDto> buildDefaultSynonyms(String kanji) {

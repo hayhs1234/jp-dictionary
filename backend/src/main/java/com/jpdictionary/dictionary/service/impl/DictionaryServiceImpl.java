@@ -13,9 +13,13 @@ import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
 import com.jpdictionary.dictionary.entity.ExampleSentence;
 import com.jpdictionary.dictionary.entity.ExampleTranslation;
+import com.jpdictionary.dictionary.entity.KanjiEntry;
 import com.jpdictionary.dictionary.entity.SenseGloss;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
+import com.jpdictionary.dictionary.repository.KanjiEntryRepository;
 import com.jpdictionary.dictionary.service.DictionaryService;
+import com.jpdictionary.dictionary.service.deinflect.JapaneseDeinflector;
+import com.jpdictionary.dictionary.service.external.KanjiExternalApiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -23,79 +27,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class DictionaryServiceImpl implements DictionaryService {
 
     private final DictionaryEntryRepository entryRepository;
-
-    private static final Map<String, KanjiBreakdownDto> KANJI_DATABASE = new HashMap<>();
-
-    static {
-        registerKanji("木", 4, "Cấp độ N5", "MỘC (Cây)", "モク, ボク", "き, こ",
-                "Cây cối, gỗ, chất liệu thực vật.");
-        registerKanji("漏", 14, "Cấp độ N1", "LẬU (Rò rỉ, lọt)", "ロウ", "も-る, も-れる",
-                "Rò rỉ nước, lọt ánh sáng, sơ hở.");
-        registerKanji("日", 4, "Cấp độ N5", "NHẬT (Mặt trời)", "ニチ, ジツ", "ひ, -び",
-                "Thái dương, ban ngày, nhật quang.");
-        registerKanji("食", 9, "Cấp độ N5", "THỰC (Ăn)", "ショク", "た-べる, く-う",
-                "Ăn uống, thức ăn, thực phẩm.");
-        registerKanji("飲", 12, "Cấp độ N5", "ẨM (Uống)", "イン", "の-む",
-                "Uống chất lỏng, ẩm thực.");
-        registerKanji("行", 6, "Cấp độ N5", "HÀNH (Đi)", "コウ, ギョウ", "い-く, ゆ-く",
-                "Đi lại, tiến hành, thực hành.");
-        registerKanji("来", 7, "Cấp độ N5", "LAI (Đến)", "ライ", "く-る, きた-る",
-                "Đến, tới, tương lai.");
-        registerKanji("本", 5, "Cấp độ N5", "BỔN (Gốc, sách)", "ホン", "もと",
-                "Sách vở, gốc rễ, nền tảng.");
-        registerKanji("語", 14, "Cấp độ N5", "NGỮ (Ngôn ngữ)", "ゴ", "かた-る",
-                "Lời nói, tiếng nói, ngôn ngữ.");
-        registerKanji("新", 13, "Cấp độ N5", "TÂN (Mới)", "シン", "あたら-しい",
-                "Mới mẻ, tân tiến, tươi mới.");
-        registerKanji("古", 5, "Cấp độ N5", "CỔ (Cũ)", "コ", "ふる-i",
-                "Cổ xưa, cũ kỹ, lâu đời.");
-        registerKanji("話", 13, "Cấp độ N5", "THOẠI (Nói)", "ワ", "はな-す, はなし",
-                "Trò chuyện, câu chuyện, đàm thoại.");
-        registerKanji("書", 10, "Cấp độ N5", "THƯ (Viết, sách)", "ショ", "か-く",
-                "Viết lách, sách vở, tài liệu.");
-        registerKanji("聞", 14, "Cấp độ N5", "VĂN (Nghe)", "ブン, モン", "き-く",
-                "Nghe thấy, thính giác, hỏi han.");
-        registerKanji("見", 7, "Cấp độ N5", "KIẾN (Nhìn)", "ケン", "み-る",
-                "Nhìn thấy, quan sát, kiến thức.");
-        registerKanji("先", 6, "Cấp độ N5", "TIÊN (Trước)", "セン", "さき",
-                "Đi trước, thời trước, tiên sinh.");
-        registerKanji("生", 5, "Cấp độ N5", "SINH (Sống, sinh)", "セイ, ショウ", "い-きる, う-まれる",
-                "Sinh sống, sinh ra, học sinh.");
-        registerKanji("学", 8, "Cấp độ N5", "HỌC (Học tập)", "ガク", "まな-ぶ",
-                "Học hành, trường học, học giả.");
-        registerKanji("友", 4, "Cấp độ N5", "HỮU (Bạn bè)", "ユウ", "とも",
-                "Bạn hữu, bè bạn, thân thiện.");
-        registerKanji("達", 12, "Cấp độ N5", "ĐẠT (Đạt đến)", "タツ", "たち",
-                "Đạt được, thông suốt, số nhiều.");
-        registerKanji("桜", 10, "Cấp độ N3", "ANH (Hoa anh đào)", "オウ", "さくら",
-                "Cây hoa anh đào, biểu tượng nước Nhật.");
-        registerKanji("雨", 8, "Cấp độ N5", "VŨ (Cơn mưa)", "ウ", "あめ",
-                "Nước mưa, thời tiết mưa.");
-    }
-
-    private static void registerKanji(String ch, int strokes, String jlpt, String hv,
-            String on, String kun, String meaning) {
-        KANJI_DATABASE.put(ch, KanjiBreakdownDto.builder()
-                .character(ch)
-                .strokeCount(strokes)
-                .jlptLevel(jlpt)
-                .hanViet(hv)
-                .onReadings(on)
-                .kunReadings(kun)
-                .meaning(meaning)
-                .build());
-    }
+    private final KanjiEntryRepository kanjiEntryRepository;
+    private final JapaneseDeinflector deinflector;
+    private final KanjiExternalApiService kanjiExternalApiService;
 
     @Override
     @Transactional(readOnly = true)
@@ -117,6 +64,20 @@ public class DictionaryServiceImpl implements DictionaryService {
         if (!query.isEmpty()) {
             results.addAll(entryRepository.findExactMatches(query, jlpt, pos));
         }
+
+        // De-inflection: detect conjugated forms (e.g., 食べた -> 食べる, いかない -> いく)
+        if (!query.isEmpty() && deinflector != null) {
+            List<String> deinflectedRoots = deinflector.deinflect(query);
+            for (String root : deinflectedRoots) {
+                List<DictionaryEntry> rootMatches = entryRepository.findExactMatches(root, jlpt, pos);
+                for (DictionaryEntry entry : rootMatches) {
+                    if (results.stream().noneMatch(e -> e.getId().equals(entry.getId()))) {
+                        results.add(entry);
+                    }
+                }
+            }
+        }
+
         if (results.size() < 20) {
             List<DictionaryEntry> fuzzy = entryRepository.searchEntries(
                     query, jlpt, pos, PageRequest.of(0, 20 - results.size()));
@@ -181,15 +142,28 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     @Override
+    @Transactional
     public KanjiBreakdownDto getKanjiDetail(String character) {
         if (character == null || character.isEmpty()) {
             return null;
         }
         String ch = character.substring(0, 1);
-        KanjiBreakdownDto dto = KANJI_DATABASE.get(ch);
-        if (dto != null) {
-            return dto;
+
+        // 1. Check local database
+        Optional<KanjiEntry> opt = kanjiEntryRepository.findByCharacterText(ch);
+        if (opt.isPresent()) {
+            return mapKanjiToDto(opt.get());
         }
+
+        // 2. Hybrid fallback: Fetch from external API and auto-cache to local DB
+        if (kanjiExternalApiService != null) {
+            Optional<KanjiEntry> externalOpt = kanjiExternalApiService.fetchAndCacheKanji(ch);
+            if (externalOpt.isPresent()) {
+                return mapKanjiToDto(externalOpt.get());
+            }
+        }
+
+        // 3. Fallback for completely unknown symbols or offline
         return KanjiBreakdownDto.builder()
                 .character(ch)
                 .strokeCount(null)
@@ -202,12 +176,29 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<KanjiBreakdownDto> getTrendingKanji() {
-        return List.of(
-                getKanjiDetail("桜"),
-                getKanjiDetail("雨"),
-                getKanjiDetail("木"),
-                getKanjiDetail("日"));
+        List<KanjiEntry> trending = kanjiEntryRepository.findTopTrendingKanji(PageRequest.of(0, 4));
+        if (trending.isEmpty()) {
+            return List.of(
+                    getKanjiDetail("桜"),
+                    getKanjiDetail("雨"),
+                    getKanjiDetail("木"),
+                    getKanjiDetail("日"));
+        }
+        return trending.stream().map(this::mapKanjiToDto).collect(Collectors.toList());
+    }
+
+    private KanjiBreakdownDto mapKanjiToDto(KanjiEntry k) {
+        return KanjiBreakdownDto.builder()
+                .character(k.getCharacterText())
+                .strokeCount(k.getStrokeCount())
+                .jlptLevel(k.getJlptLevel() != null ? "Cấp độ " + k.getJlptLevel() : "Thường dùng")
+                .hanViet(k.getHanViet())
+                .onReadings(k.getOnReadings() != null ? k.getOnReadings() : "-")
+                .kunReadings(k.getKunReadings() != null ? k.getKunReadings() : "-")
+                .meaning(k.getMeaning())
+                .build();
     }
 
     private WordDetailDto mapToWordDetail(DictionaryEntry entry) {
@@ -295,17 +286,30 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     private List<KanjiBreakdownDto> extractKanjiBreakdown(String text) {
-        List<KanjiBreakdownDto> list = new ArrayList<>();
-        if (text == null) {
-            return list;
+        if (text == null || text.isEmpty()) {
+            return Collections.emptyList();
         }
+        Set<String> kanjiChars = new LinkedHashSet<>();
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (isKanji(c)) {
-                String ch = String.valueOf(c);
-                if (list.stream().noneMatch(k -> k.getCharacter().equals(ch))) {
-                    list.add(getKanjiDetail(ch));
-                }
+                kanjiChars.add(String.valueOf(c));
+            }
+        }
+        if (kanjiChars.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, KanjiEntry> map = kanjiEntryRepository.findByCharacterTextIn(kanjiChars).stream()
+                .collect(Collectors.toMap(KanjiEntry::getCharacterText, k -> k, (k1, k2) -> k1));
+
+        List<KanjiBreakdownDto> list = new ArrayList<>();
+        for (String ch : kanjiChars) {
+            KanjiEntry entry = map.get(ch);
+            if (entry != null) {
+                list.add(mapKanjiToDto(entry));
+            } else {
+                list.add(getKanjiDetail(ch));
             }
         }
         return list;
@@ -318,23 +322,47 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     private String deriveSingleHanViet(String ch) {
-        KanjiBreakdownDto dto = KANJI_DATABASE.get(ch);
-        if (dto != null && dto.getHanViet() != null) {
-            return dto.getHanViet().split(" ")[0];
+        Optional<KanjiEntry> opt = kanjiEntryRepository.findByCharacterText(ch);
+        if (opt.isPresent()) {
+            return opt.get().getHanViet().split(" ")[0];
         }
         return "";
     }
 
     private String deriveHanViet(String text) {
-        if (text == null) {
+        if (text == null || text.isEmpty()) {
             return "";
         }
+        Set<String> kanjiChars = extractKanjiSet(text);
+        if (kanjiChars.isEmpty()) {
+            return "";
+        }
+
+        Map<String, KanjiEntry> map = kanjiEntryRepository.findByCharacterTextIn(kanjiChars).stream()
+                .collect(Collectors.toMap(KanjiEntry::getCharacterText, k -> k, (k1, k2) -> k1));
+
+        return buildHanVietString(text, map);
+    }
+
+    private Set<String> extractKanjiSet(String text) {
+        Set<String> kanjiChars = new LinkedHashSet<>();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (isKanji(c)) {
+                kanjiChars.add(String.valueOf(c));
+            }
+        }
+        return kanjiChars;
+    }
+
+    private String buildHanVietString(String text, Map<String, KanjiEntry> map) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (isKanji(c)) {
-                String hv = deriveSingleHanViet(String.valueOf(c));
-                if (!hv.isEmpty()) {
+                KanjiEntry entry = map.get(String.valueOf(c));
+                if (entry != null && entry.getHanViet() != null) {
+                    String hv = entry.getHanViet().split(" ")[0];
                     if (!sb.isEmpty()) {
                         sb.append(" ");
                     }
@@ -345,42 +373,41 @@ public class DictionaryServiceImpl implements DictionaryService {
         return sb.toString();
     }
 
-    private boolean requiresFurigana(String kanji, String hiragana) {
-        return hiragana != null && !hiragana.isEmpty() && !kanji.equals(hiragana);
-    }
+    private List<FuriganaSegmentDto> buildFuriganaSegments(String kanji, String hiragana) {
+        List<FuriganaSegmentDto> list = new ArrayList<>();
+        if (kanji == null || kanji.isEmpty()) {
+            return list;
+        }
+        if (hiragana == null || hiragana.isEmpty() || kanji.equals(hiragana)) {
+            list.add(new FuriganaSegmentDto(kanji, ""));
+            return list;
+        }
 
-    private int calculateCommonSuffixLength(String kanji, String hiragana) {
+        // Dynamic okurigana matching: find common trailing kana
         int kLen = kanji.length();
         int hLen = hiragana.length();
+        int suffixLen = calculateCommonSuffixLength(kanji, hiragana, kLen, hLen);
+
+        if (suffixLen > 0 && suffixLen < kLen && suffixLen < hLen) {
+            String kanjiStem = kanji.substring(0, kLen - suffixLen);
+            String hiraganaStem = hiragana.substring(0, hLen - suffixLen);
+            String okurigana = kanji.substring(kLen - suffixLen);
+            list.add(new FuriganaSegmentDto(kanjiStem, hiraganaStem));
+            list.add(new FuriganaSegmentDto(okurigana, ""));
+            return list;
+        }
+
+        list.add(new FuriganaSegmentDto(kanji, hiragana));
+        return list;
+    }
+
+    private int calculateCommonSuffixLength(String kanji, String hiragana, int kLen, int hLen) {
         int suffixLen = 0;
         while (suffixLen < kLen && suffixLen < hLen
                 && kanji.charAt(kLen - 1 - suffixLen) == hiragana.charAt(hLen - 1 - suffixLen)) {
             suffixLen++;
         }
         return suffixLen;
-    }
-
-    private List<FuriganaSegmentDto> buildFuriganaSegments(String kanji, String hiragana) {
-        if (kanji == null || kanji.isEmpty()) {
-            return Collections.emptyList();
-        }
-        if (!requiresFurigana(kanji, hiragana)) {
-            return List.of(new FuriganaSegmentDto(kanji, ""));
-        }
-
-        int suffixLen = calculateCommonSuffixLength(kanji, hiragana);
-        int kLen = kanji.length();
-        int hLen = hiragana.length();
-        if (suffixLen > 0 && suffixLen < kLen && suffixLen < hLen) {
-            String kanjiStem = kanji.substring(0, kLen - suffixLen);
-            String hiraganaStem = hiragana.substring(0, hLen - suffixLen);
-            String okurigana = kanji.substring(kLen - suffixLen);
-            return List.of(
-                    new FuriganaSegmentDto(kanjiStem, hiraganaStem),
-                    new FuriganaSegmentDto(okurigana, ""));
-        }
-
-        return List.of(new FuriganaSegmentDto(kanji, hiragana));
     }
 
     private List<SynonymDto> buildDefaultSynonyms(String kanji) {

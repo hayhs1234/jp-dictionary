@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import * as wanakana from 'wanakana';
 import Icon from '../common/Icon.jsx';
+import VirtualKeyboard from './VirtualKeyboard.jsx';
 import dictionaryService from '../../services/dictionaryService.js';
 
 export default function SearchBar({
@@ -17,7 +19,9 @@ export default function SearchBar({
   const [localInput, setLocalInput] = useState(searchTerm);
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showVirtualKeyboard, setShowVirtualKeyboard] = useState(false);
   const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     setLocalInput(searchTerm);
@@ -70,10 +74,25 @@ export default function SearchBar({
   ];
 
   const handleInputChange = (e) => {
-    const val = e.target.value;
+    let val = e.target.value;
+    if (imeMode === 'kana') {
+      val = wanakana.toHiragana(val, { IMEMode: true });
+    }
     setLocalInput(val);
     if (onSearchChange) {
       onSearchChange(val);
+    }
+  };
+
+  const handleImeModeChange = (newMode) => {
+    setImeMode(newMode);
+    if (newMode === 'kana' && localInput && wanakana.isRomaji(localInput)) {
+      const converted = wanakana.toHiragana(localInput);
+      setLocalInput(converted);
+      if (onSearchChange) onSearchChange(converted);
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
     }
   };
 
@@ -83,6 +102,9 @@ export default function SearchBar({
     setShowDropdown(false);
     if (onSearchChange) {
       onSearchChange('');
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
     }
   };
 
@@ -103,6 +125,28 @@ export default function SearchBar({
     if (onSearchSubmit) {
       onSearchSubmit(item.term, { jlpt: selectedJlpt, type: selectedType });
     }
+  };
+
+  const handleVirtualCharClick = (char) => {
+    const nextVal = (localInput || '') + char;
+    setLocalInput(nextVal);
+    if (onSearchChange) onSearchChange(nextVal);
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleVirtualBackspace = () => {
+    if (localInput && localInput.length > 0) {
+      const nextVal = localInput.slice(0, -1);
+      setLocalInput(nextVal);
+      if (onSearchChange) onSearchChange(nextVal);
+    }
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleVirtualClear = () => {
+    setLocalInput('');
+    if (onSearchChange) onSearchChange('');
+    if (inputRef.current) inputRef.current.focus();
   };
 
   return (
@@ -140,41 +184,50 @@ export default function SearchBar({
             <div className="inline-flex rounded-lg border border-surface-container-high overflow-hidden bg-surface-container-low">
               <button
                 type="button"
-                onClick={() => setImeMode('romaji')}
+                onClick={() => handleImeModeChange('romaji')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'romaji'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Gõ ký tự Latin (Romaji)"
               >
                 Romaji
               </button>
               <button
                 type="button"
-                onClick={() => setImeMode('kana')}
+                onClick={() => handleImeModeChange('kana')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'kana'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Tự động chuyển Romaji sang Hiragana (vd: taberu -> たべる)"
               >
                 かな
               </button>
               <button
                 type="button"
-                onClick={() => setImeMode('kanji')}
+                onClick={() => handleImeModeChange('kanji')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'kanji'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Dùng bộ gõ hệ điều hành để nhập Kanji"
               >
                 漢字
               </button>
             </div>
             <button
               type="button"
-              className="flex items-center space-x-1 px-2.5 py-1 rounded border border-surface-container-high hover:border-outline text-on-surface bg-surface-container-lowest"
+              onClick={() => setShowVirtualKeyboard((prev) => !prev)}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded border transition-colors ${
+                showVirtualKeyboard
+                  ? 'border-primary bg-primary-fixed/30 text-primary font-bold shadow-xs'
+                  : 'border-surface-container-high hover:border-outline text-on-surface bg-surface-container-lowest'
+              }`}
+              title="Bật/Tắt bàn phím ảo tiếng Nhật"
             >
               <Icon name="keyboard" className="text-base" />
               <span className="hidden md:inline">Bàn phím Ảo</span>
@@ -188,18 +241,23 @@ export default function SearchBar({
             <Icon name="search" className="text-2xl" />
           </div>
           <input
+            ref={inputRef}
             type="text"
             value={localInput}
             onChange={handleInputChange}
             onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
-            placeholder="Nhập từ vựng, kanji, mẫu ngữ pháp hoặc câu cần tra (ví dụ: komorebi, こもれび, ánh nắng qua lá)..."
+            placeholder={
+              imeMode === 'kana'
+                ? 'Đang bật bộ gõ かな (gõ "taberu" sẽ thành "たべる")...'
+                : 'Nhập từ vựng, kanji, mẫu ngữ pháp hoặc câu cần tra...'
+            }
             className="w-full pl-12 pr-32 py-3.5 bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 rounded-xl text-headline-sm font-headline-sm text-on-surface placeholder:text-on-surface-variant/50 placeholder:text-body-md transition-all shadow-sm"
           />
           <div className="absolute right-3 flex items-center space-x-1">
             <button
               type="button"
               className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-full transition-colors"
-              title="Nhận diện giọng nói"
+              title="Nhận diện giọng nói (Tính năng tương lai)"
             >
               <Icon name="mic" className="text-xl" />
             </button>
@@ -275,6 +333,15 @@ export default function SearchBar({
             </div>
           )}
         </form>
+
+        {/* Collapsible Virtual Keyboard */}
+        <VirtualKeyboard
+          isOpen={showVirtualKeyboard}
+          onClose={() => setShowVirtualKeyboard(false)}
+          onCharClick={handleVirtualCharClick}
+          onBackspace={handleVirtualBackspace}
+          onClear={handleVirtualClear}
+        />
 
         {/* Quick Filters Bar (JLPT + Word Types) */}
         <div className="flex flex-wrap items-center justify-between gap-space-sm pt-1 text-label-sm font-label-sm border-t border-surface-container-high">

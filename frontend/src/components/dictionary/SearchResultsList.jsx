@@ -68,9 +68,16 @@ export default function SearchResultsList({
               </div>
 
               <div className="flex items-center justify-between text-body-sm text-on-surface line-clamp-1">
-                <span className="text-body-sm text-on-surface-variant truncate">
-                  {item.primaryMeaning || 'Chưa có giải nghĩa'}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-body-sm text-on-surface-variant truncate">
+                    {item.primaryMeaning || 'Chưa có giải nghĩa'}
+                  </span>
+                  {item.senses && item.senses.length > 1 && (
+                    <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded shrink-0">
+                      +{item.senses.length - 1} nghĩa
+                    </span>
+                  )}
+                </div>
                 {item.partOfSpeech && (
                   <span className="text-[11px] text-outline ml-2 shrink-0">
                     {item.partOfSpeech.split(' ')[0]}

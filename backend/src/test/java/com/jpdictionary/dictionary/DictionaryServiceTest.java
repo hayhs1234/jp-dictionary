@@ -82,6 +82,62 @@ class DictionaryServiceTest {
         assertEquals("taberu", word.getRomaji());
         assertEquals("ăn, dùng bữa", word.getPrimaryMeaning());
         assertEquals("N5", word.getJlptLevel());
+        assertNotNull(word.getSenses());
+        assertEquals(1, word.getSenses().size());
+        assertEquals("ăn, dùng bữa", word.getSenses().get(0).getMeaning());
+    }
+
+    @Test
+    @DisplayName("Should return all senses when word has multiple senses (Polysemy)")
+    void testSearchMultipleSensesReturnsAllSenses() {
+        DictionaryEntry entry = createMockWord(18L, "直す", "なおす", "naosu", "v5s (Động từ nhóm 1)", "sửa chữa", (byte) 4);
+
+        // Add second sense: Đính chính, sửa lỗi
+        DictionarySense sense2 = DictionarySense.builder()
+                .id(100L)
+                .entry(entry)
+                .senseOrder(2)
+                .partOfSpeech("v5s (Động từ nhóm 1)")
+                .notes("Đính chính, sửa lỗi sai")
+                .build();
+        sense2.getGlosses().add(SenseGloss.builder().id(100L).sense(sense2).languageCode("vi").meaning("đính chính, sửa sai").build());
+        sense2.getGlosses().add(SenseGloss.builder().id(101L).sense(sense2).languageCode("en").meaning("to correct").build());
+        entry.getSenses().add(sense2);
+
+        // Add third sense: Dịch thuật, quy đổi
+        DictionarySense sense3 = DictionarySense.builder()
+                .id(102L)
+                .entry(entry)
+                .senseOrder(3)
+                .partOfSpeech("v5s (Động từ nhóm 1)")
+                .notes("Dịch thuật sang ngôn ngữ khác")
+                .build();
+        sense3.getGlosses().add(SenseGloss.builder().id(103L).sense(sense3).languageCode("vi").meaning("dịch sang ngôn ngữ khác").build());
+        entry.getSenses().add(sense3);
+
+        when(entryRepository.findExactMatches("直す", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("直す", null, null);
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        WordDetailDto word = results.get(0);
+
+        assertEquals("直す", word.getKanji());
+        assertEquals("sửa chữa", word.getPrimaryMeaning());
+        assertNotNull(word.getSenses());
+        assertEquals(3, word.getSenses().size());
+
+        // Verify sense 1
+        assertEquals("sửa chữa", word.getSenses().get(0).getMeaning());
+        assertEquals("v5s (Động từ nhóm 1)", word.getSenses().get(0).getPartOfSpeech());
+
+        // Verify sense 2
+        assertEquals("đính chính, sửa sai", word.getSenses().get(1).getMeaning());
+        assertEquals("Đính chính, sửa lỗi sai", word.getSenses().get(1).getDetailedMeaning());
+        assertTrue(word.getSenses().get(1).getEnglishGlosses().contains("to correct"));
+
+        // Verify sense 3
+        assertEquals("dịch sang ngôn ngữ khác", word.getSenses().get(2).getMeaning());
     }
 
     @Test

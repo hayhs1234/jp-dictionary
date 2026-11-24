@@ -72,6 +72,7 @@ export default function WordCard({ word, isLoading = false }) {
     partOfSpeech = 'Từ vựng',
     primaryMeaning = '',
     detailedMeaning = '',
+    senses = [],
     furiganaSegments = [],
     kanjiBreakdown = [],
     examples = [],
@@ -203,20 +204,73 @@ export default function WordCard({ word, isLoading = false }) {
 
       {/* Meaning & Vietnamese Definition */}
       <div className="py-space-md space-y-space-sm">
-        <h2 className="text-label-md font-label-md text-primary font-bold uppercase tracking-wider flex items-center space-x-1.5">
-          <Icon name="menu_book" className="text-lg" />
-          <span>Ý nghĩa chính &amp; Định nghĩa</span>
-        </h2>
-        <div className="p-space-md bg-surface-container-low rounded-lg border-l-4 border-primary">
-          <p className="text-headline-sm font-headline-sm text-on-surface font-semibold leading-relaxed">
-            {primaryMeaning || 'Đang cập nhật định nghĩa...'}
-          </p>
-          {detailedMeaning && (
-            <p className="text-body-md font-body-md text-on-surface-variant mt-1 leading-normal">
-              {detailedMeaning}
-            </p>
+        <div className="flex items-center justify-between">
+          <h2 className="text-label-md font-label-md text-primary font-bold uppercase tracking-wider flex items-center space-x-1.5">
+            <Icon name="menu_book" className="text-lg" />
+            <span>Ý nghĩa &amp; Định nghĩa chi tiết</span>
+          </h2>
+          {senses && senses.length > 1 && (
+            <span className="bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 rounded-full text-label-sm font-bold flex items-center gap-1">
+              <Icon name="auto_stories" className="text-sm" />
+              <span>{senses.length} nét nghĩa</span>
+            </span>
           )}
         </div>
+
+        {senses && senses.length > 0 ? (
+          <div className="space-y-3">
+            {senses.map((sense, index) => {
+              const order = sense.senseOrder || index + 1;
+              const hasEnglish = sense.englishGlosses && sense.englishGlosses.length > 0;
+              return (
+                <div
+                  key={index}
+                  className="p-space-md bg-surface-container-low rounded-xl border border-surface-container-high hover:border-primary/40 transition-colors space-y-1.5"
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-xs font-bold shrink-0">
+                      {order}
+                    </span>
+                    {sense.partOfSpeech && (
+                      <span className="bg-secondary-fixed text-on-secondary-fixed-variant px-2 py-0.5 rounded text-[11px] font-bold">
+                        {sense.partOfSpeech}
+                      </span>
+                    )}
+                    <h3 className="text-title-md font-bold text-on-surface leading-snug">
+                      {sense.meaning || primaryMeaning}
+                    </h3>
+                  </div>
+
+                  {sense.detailedMeaning && sense.detailedMeaning !== sense.meaning && (
+                    <p className="text-body-md font-body-md text-on-surface-variant pl-8 leading-normal">
+                      {sense.detailedMeaning}
+                    </p>
+                  )}
+
+                  {hasEnglish && (
+                    <div className="pl-8 pt-0.5 flex items-center gap-1.5 text-body-sm text-outline">
+                      <Icon name="language" className="text-sm shrink-0" />
+                      <span className="italic">
+                        Tiếng Anh: {sense.englishGlosses.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-space-md bg-surface-container-low rounded-lg border-l-4 border-primary">
+            <p className="text-headline-sm font-headline-sm text-on-surface font-semibold leading-relaxed">
+              {primaryMeaning || 'Đang cập nhật định nghĩa...'}
+            </p>
+            {detailedMeaning && (
+              <p className="text-body-md font-body-md text-on-surface-variant mt-1 leading-normal">
+                {detailedMeaning}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* KANJI BREAKDOWN SECTION */}

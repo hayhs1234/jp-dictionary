@@ -7,6 +7,7 @@ import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
 import com.jpdictionary.dictionary.dto.SuggestionDto;
 import com.jpdictionary.dictionary.dto.SynonymDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
+import com.jpdictionary.dictionary.dto.WordSenseDto;
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
@@ -216,21 +217,47 @@ public class DictionaryServiceImpl implements DictionaryService {
         String hiragana = primaryReading != null ? primaryReading.getReading() : "";
         String romaji = primaryReading != null ? primaryReading.getRomaji() : "";
 
-        DictionarySense primarySense = entry.getSenses().stream().findFirst().orElse(null);
-        String pos = primarySense != null ? primarySense.getPartOfSpeech() : "";
+        List<WordSenseDto> senseDtos = new ArrayList<>();
+        if (entry.getSenses() != null) {
+            for (DictionarySense sense : entry.getSenses()) {
+                String sensePos = sense.getPartOfSpeech() != null ? sense.getPartOfSpeech() : "";
 
-        String primaryMeaning = "";
-        String detailedMeaning = "";
-        if (primarySense != null && !primarySense.getGlosses().isEmpty()) {
-            Optional<SenseGloss> viGloss = primarySense.getGlosses().stream()
-                    .filter(g -> "vi".equalsIgnoreCase(g.getLanguageCode()))
-                    .findFirst();
-            primaryMeaning = viGloss.map(SenseGloss::getMeaning)
-                    .orElse(primarySense.getGlosses().get(0).getMeaning());
-            detailedMeaning = primarySense.getNotes() != null
-                    ? primarySense.getNotes()
-                    : primaryMeaning;
+                List<String> viGlosses = sense.getGlosses().stream()
+                        .filter(g -> "vi".equalsIgnoreCase(g.getLanguageCode()))
+                        .map(SenseGloss::getMeaning)
+                        .toList();
+
+                List<String> enGlosses = sense.getGlosses().stream()
+                        .filter(g -> "en".equalsIgnoreCase(g.getLanguageCode()))
+                        .map(SenseGloss::getMeaning)
+                        .toList();
+
+                String senseMeaning = !viGlosses.isEmpty()
+                        ? String.join("; ", viGlosses)
+                        : (!enGlosses.isEmpty() ? String.join("; ", enGlosses) : "");
+
+                if (senseMeaning.isEmpty() && !sense.getGlosses().isEmpty()) {
+                    senseMeaning = sense.getGlosses().get(0).getMeaning();
+                }
+
+                String senseNotes = sense.getNotes() != null ? sense.getNotes() : "";
+
+                senseDtos.add(WordSenseDto.builder()
+                        .senseOrder(sense.getSenseOrder() != null ? sense.getSenseOrder() : senseDtos.size() + 1)
+                        .partOfSpeech(sensePos)
+                        .meaning(senseMeaning)
+                        .detailedMeaning(senseNotes)
+                        .glosses(viGlosses)
+                        .englishGlosses(enGlosses)
+                        .build());
+            }
         }
+
+        String primaryMeaning = !senseDtos.isEmpty() ? senseDtos.get(0).getMeaning() : "";
+        String detailedMeaning = !senseDtos.isEmpty() && !senseDtos.get(0).getDetailedMeaning().isEmpty()
+                ? senseDtos.get(0).getDetailedMeaning()
+                : primaryMeaning;
+        String pos = !senseDtos.isEmpty() ? senseDtos.get(0).getPartOfSpeech() : "";
 
         String jlptStr = entry.getJlptLevel() != null ? "N" + entry.getJlptLevel() : "N/A";
         String hanViet = deriveHanViet(kanji);
@@ -250,6 +277,7 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .partOfSpeech(pos)
                 .primaryMeaning(primaryMeaning)
                 .detailedMeaning(detailedMeaning)
+                .senses(senseDtos)
                 .furiganaSegments(segments)
                 .kanjiBreakdown(kanjiList)
                 .examples(exampleDtos)

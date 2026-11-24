@@ -9,6 +9,7 @@ import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
 import com.jpdictionary.dictionary.entity.KanjiEntry;
 import com.jpdictionary.dictionary.entity.SenseGloss;
+import com.jpdictionary.dictionary.enums.PosCategory;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.KanjiEntryRepository;
 import com.jpdictionary.dictionary.service.DictionaryService;
@@ -236,6 +237,67 @@ class DictionaryServiceTest {
         assertEquals("木漏れ日", suggestions.get(0).getTerm());
     }
 
+    @Test
+    @DisplayName("Should pass NOUN category to repository when filtering by noun")
+    void testSearchFilterByNoun() {
+        DictionaryEntry nounEntry = createMockWord(5L, "本", "ほん", "hon", "n (Danh từ)", "sách", (byte) 5);
+        when(entryRepository.findExactMatches("本", null, "NOUN")).thenReturn(List.of(nounEntry));
+
+        List<WordDetailDto> results = dictionaryService.search("本", null, "noun");
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertEquals("本", results.get(0).getKanji());
+        assertEquals("n (Danh từ)", results.get(0).getPartOfSpeech());
+    }
+
+    @Test
+    @DisplayName("Should pass VERB category to repository when filtering by verb")
+    void testSearchFilterByVerb() {
+        DictionaryEntry verbEntry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
+        when(entryRepository.findExactMatches("食べる", null, "VERB")).thenReturn(List.of(verbEntry));
+
+        List<WordDetailDto> results = dictionaryService.search("食べる", null, "verb");
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertEquals("食べる", results.get(0).getKanji());
+    }
+
+    @Test
+    @DisplayName("Should pass IDIOM category to repository when filtering by idiom")
+    void testSearchFilterByIdiom() {
+        DictionaryEntry idiomEntry = createMockWord(99L, "一期一会", "いちごいちえ", "ichigoichie", "id (Quán dụng ngữ)", "nhất kỳ nhất hội", (byte) 1);
+        when(entryRepository.findExactMatches("一期一会", null, "IDIOM")).thenReturn(List.of(idiomEntry));
+
+        List<WordDetailDto> results = dictionaryService.search("一期一会", null, "idiom");
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertEquals("一期一会", results.get(0).getKanji());
+    }
+
+    @Test
+    @DisplayName("Should prioritize matching sense POS when filtering multi-sense word")
+    void testSearchFilterPolysemyPrefersMatchingSense() {
+        DictionaryEntry entry = createMockWord(18L, "直す", "なおす", "naosu", "n (Danh từ)", "việc sửa", (byte) 4);
+        DictionarySense sense2 = DictionarySense.builder()
+                .id(100L)
+                .entry(entry)
+                .senseOrder(2)
+                .partOfSpeech("v5s (Động từ nhóm 1)")
+                .posCategory("VERB")
+                .notes("sửa chữa")
+                .build();
+        sense2.getGlosses().add(SenseGloss.builder().id(100L).sense(sense2).languageCode("vi").meaning("sửa chữa").build());
+        entry.getSenses().add(sense2);
+
+        when(entryRepository.findExactMatches("直す", null, "VERB")).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("直す", null, "verb");
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        // Primary POS of DTO should be the matching sense (Verb), not the first sense (Noun)
+        assertEquals("v5s (Động từ nhóm 1)", results.get(0).getPartOfSpeech());
+    }
+
     private DictionaryEntry createMockWord(Long id, String kanji, String hiragana, String romaji, String pos, String meaning, Byte jlpt) {
         DictionaryEntry entry = DictionaryEntry.builder()
                 .id(id)
@@ -264,6 +326,7 @@ class DictionaryServiceTest {
                 .id(id)
                 .entry(entry)
                 .partOfSpeech(pos)
+                .posCategory(PosCategory.inferCategories(pos))
                 .build();
 
         SenseGloss gloss = SenseGloss.builder()

@@ -1,5 +1,14 @@
 import Icon from '../common/Icon.jsx';
 
+function formatPosBadge(pos) {
+  if (!pos) return '';
+  const match = pos.match(/\(([^)]+)\)/);
+  if (match && match[1]) {
+    return match[1].split('/')[0].trim();
+  }
+  return pos.replace(/\[.*?\]/, '').trim();
+}
+
 export default function SearchResultsList({
   results = [],
   selectedIndex = 0,
@@ -80,7 +89,7 @@ export default function SearchResultsList({
                 </div>
                 {item.partOfSpeech && (
                   <span className="text-[11px] text-outline ml-2 shrink-0">
-                    {item.partOfSpeech.split(' ')[0]}
+                    {formatPosBadge(item.partOfSpeech)}
                   </span>
                 )}
               </div>

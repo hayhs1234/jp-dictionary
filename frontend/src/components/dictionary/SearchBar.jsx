@@ -1,12 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import * as wanakana from 'wanakana';
 import Icon from '../common/Icon.jsx';
+import VirtualKeyboard from './VirtualKeyboard.jsx';
+import dictionaryService from '../../services/dictionaryService.js';
 
-export default function SearchBar() {
+export default function SearchBar({
+  searchTerm = '',
+  onSearchChange,
+  onSearchSubmit,
+  selectedJlpt = 'all',
+  onJlptChange,
+  selectedType = 'all',
+  onTypeChange,
+  isLoading = false,
+}) {
   const [searchMode, setSearchMode] = useState('vocab'); // 'vocab' | 'translate'
   const [imeMode, setImeMode] = useState('romaji'); // 'romaji' | 'kana' | 'kanji'
-  const [searchTerm, setSearchTerm] = useState('木漏れ日');
-  const [selectedJlpt, setSelectedJlpt] = useState('N2');
-  const [selectedType, setSelectedType] = useState('noun');
+  const [localInput, setLocalInput] = useState(searchTerm);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showVirtualKeyboard, setShowVirtualKeyboard] = useState(false);
+  const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setLocalInput(searchTerm);
+  }, [searchTerm]);
+
+  // Debounced autocomplete suggestions fetch
+  useEffect(() => {
+    const trimmed = localInput.trim();
+    if (!trimmed || trimmed.length < 1) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const items = await dictionaryService.getSuggestions(trimmed);
+      setSuggestions(items);
+      setShowDropdown(items.length > 0);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [localInput]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const jlptLevels = [
     { id: 'all', label: 'Tất cả' },
@@ -18,14 +66,87 @@ export default function SearchBar() {
   ];
 
   const wordTypes = [
+    { id: 'all', label: 'Tất cả' },
     { id: 'noun', label: 'Danh từ' },
     { id: 'verb', label: 'Động từ' },
     { id: 'adj', label: 'Tính từ' },
     { id: 'idiom', label: 'Quán dụng ngữ' },
   ];
 
+  const handleInputChange = (e) => {
+    let val = e.target.value;
+    if (imeMode === 'kana') {
+      val = wanakana.toHiragana(val, { IMEMode: true });
+    }
+    setLocalInput(val);
+    if (onSearchChange) {
+      onSearchChange(val);
+    }
+  };
+
+  const handleImeModeChange = (newMode) => {
+    setImeMode(newMode);
+    if (newMode === 'kana' && localInput && wanakana.isRomaji(localInput)) {
+      const converted = wanakana.toHiragana(localInput);
+      setLocalInput(converted);
+      if (onSearchChange) onSearchChange(converted);
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   const handleClear = () => {
-    setSearchTerm('');
+    setLocalInput('');
+    setSuggestions([]);
+    setShowDropdown(false);
+    if (onSearchChange) {
+      onSearchChange('');
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    setShowDropdown(false);
+    if (onSearchSubmit) {
+      onSearchSubmit(localInput, { jlpt: selectedJlpt, type: selectedType });
+    }
+  };
+
+  const handleSelectSuggestion = (item) => {
+    setLocalInput(item.term);
+    setShowDropdown(false);
+    if (onSearchChange) {
+      onSearchChange(item.term);
+    }
+    if (onSearchSubmit) {
+      onSearchSubmit(item.term, { jlpt: selectedJlpt, type: selectedType });
+    }
+  };
+
+  const handleVirtualCharClick = (char) => {
+    const nextVal = (localInput || '') + char;
+    setLocalInput(nextVal);
+    if (onSearchChange) onSearchChange(nextVal);
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleVirtualBackspace = () => {
+    if (localInput && localInput.length > 0) {
+      const nextVal = localInput.slice(0, -1);
+      setLocalInput(nextVal);
+      if (onSearchChange) onSearchChange(nextVal);
+    }
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleVirtualClear = () => {
+    setLocalInput('');
+    if (onSearchChange) onSearchChange('');
+    if (inputRef.current) inputRef.current.focus();
   };
 
   return (
@@ -63,41 +184,50 @@ export default function SearchBar() {
             <div className="inline-flex rounded-lg border border-surface-container-high overflow-hidden bg-surface-container-low">
               <button
                 type="button"
-                onClick={() => setImeMode('romaji')}
+                onClick={() => handleImeModeChange('romaji')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'romaji'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Gõ ký tự Latin (Romaji)"
               >
                 Romaji
               </button>
               <button
                 type="button"
-                onClick={() => setImeMode('kana')}
+                onClick={() => handleImeModeChange('kana')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'kana'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Tự động chuyển Romaji sang Hiragana (vd: taberu -> たべる)"
               >
                 かな
               </button>
               <button
                 type="button"
-                onClick={() => setImeMode('kanji')}
+                onClick={() => handleImeModeChange('kanji')}
                 className={`px-2 py-1 transition-colors ${
                   imeMode === 'kanji'
                     ? 'bg-secondary text-on-secondary font-bold'
                     : 'text-on-surface hover:bg-surface-container'
                 }`}
+                title="Dùng bộ gõ hệ điều hành để nhập Kanji"
               >
                 漢字
               </button>
             </div>
             <button
               type="button"
-              className="flex items-center space-x-1 px-2.5 py-1 rounded border border-surface-container-high hover:border-outline text-on-surface bg-surface-container-lowest"
+              onClick={() => setShowVirtualKeyboard((prev) => !prev)}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded border transition-colors ${
+                showVirtualKeyboard
+                  ? 'border-primary bg-primary-fixed/30 text-primary font-bold shadow-xs'
+                  : 'border-surface-container-high hover:border-outline text-on-surface bg-surface-container-lowest'
+              }`}
+              title="Bật/Tắt bàn phím ảo tiếng Nhật"
             >
               <Icon name="keyboard" className="text-base" />
               <span className="hidden md:inline">Bàn phím Ảo</span>
@@ -105,27 +235,33 @@ export default function SearchBar() {
           </div>
         </div>
 
-        {/* Main Input Bar */}
-        <div className="relative flex items-center">
+        {/* Main Input Bar with Autocomplete Dropdown */}
+        <form onSubmit={handleSubmit} className="relative flex items-center" ref={dropdownRef}>
           <div className="absolute left-4 flex items-center pointer-events-none text-primary">
             <Icon name="search" className="text-2xl" />
           </div>
           <input
+            ref={inputRef}
             type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Nhập từ vựng, kanji, mẫu ngữ pháp hoặc câu cần tra (ví dụ: komorebi, こもれび, ánh nắng qua lá)..."
-            className="w-full pl-12 pr-28 py-3.5 bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 rounded-xl text-headline-sm font-headline-sm text-on-surface placeholder:text-on-surface-variant/50 placeholder:text-body-md transition-all shadow-sm"
+            value={localInput}
+            onChange={handleInputChange}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+            placeholder={
+              imeMode === 'kana'
+                ? 'Đang bật bộ gõ かな (gõ "taberu" sẽ thành "たべる")...'
+                : 'Nhập từ vựng, kanji, mẫu ngữ pháp hoặc câu cần tra...'
+            }
+            className="w-full pl-12 pr-32 py-3.5 bg-surface-container-lowest border border-outline-variant focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 rounded-xl text-headline-sm font-headline-sm text-on-surface placeholder:text-on-surface-variant/50 placeholder:text-body-md transition-all shadow-sm"
           />
           <div className="absolute right-3 flex items-center space-x-1">
             <button
               type="button"
               className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-full transition-colors"
-              title="Nhận diện giọng nói"
+              title="Nhận diện giọng nói (Tính năng tương lai)"
             >
               <Icon name="mic" className="text-xl" />
             </button>
-            {searchTerm && (
+            {localInput && (
               <button
                 type="button"
                 onClick={handleClear}
@@ -136,13 +272,76 @@ export default function SearchBar() {
               </button>
             )}
             <button
-              type="button"
-              className="bg-primary text-on-primary px-space-md py-2 rounded-lg font-label-md text-label-md hover:bg-primary-container transition-all flex items-center space-x-1 shadow-sm"
+              type="submit"
+              disabled={isLoading}
+              className="bg-primary text-on-primary px-space-md py-2 rounded-lg font-label-md text-label-md hover:bg-primary-container transition-all flex items-center space-x-1 shadow-sm disabled:opacity-50"
             >
-              <span>Tìm kiếm</span>
+              {isLoading ? (
+                <span>Đang tìm...</span>
+              ) : (
+                <>
+                  <Icon name="search" className="text-base" />
+                  <span>Tìm kiếm</span>
+                </>
+              )}
             </button>
           </div>
-        </div>
+
+          {/* Autocomplete Suggestions Floating Dropdown */}
+          {showDropdown && suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-surface-container-lowest border border-surface-container-high rounded-xl shadow-xl z-30 overflow-hidden divide-y divide-surface-container-high/60">
+              <div className="px-4 py-2 text-xs font-semibold text-outline bg-surface-container-low flex items-center justify-between">
+                <span>Gợi ý từ vựng phù hợp</span>
+                <span className="text-[11px] font-normal text-on-surface-variant">
+                  Nhấn Enter hoặc chọn từ
+                </span>
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {suggestions.map((item) => (
+                  <button
+                    key={`${item.id}-${item.term}`}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(item)}
+                    className="w-full text-left px-4 py-3 hover:bg-surface-container flex items-center justify-between gap-space-md transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="font-kanji-headline text-lg font-bold text-primary">
+                        {item.term}
+                      </span>
+                      {item.reading && item.reading !== item.term && (
+                        <span className="text-body-sm font-medium text-on-surface-variant">
+                          【{item.reading}】
+                        </span>
+                      )}
+                      {item.romaji && (
+                        <span className="text-label-sm text-outline italic">({item.romaji})</span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <span className="text-body-sm text-on-surface line-clamp-1 max-w-[220px]">
+                        {item.meaning}
+                      </span>
+                      {item.jlpt && (
+                        <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface-container-highest text-primary">
+                          {item.jlpt}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </form>
+
+        {/* Collapsible Virtual Keyboard */}
+        <VirtualKeyboard
+          isOpen={showVirtualKeyboard}
+          onClose={() => setShowVirtualKeyboard(false)}
+          onCharClick={handleVirtualCharClick}
+          onBackspace={handleVirtualBackspace}
+          onClear={handleVirtualClear}
+        />
 
         {/* Quick Filters Bar (JLPT + Word Types) */}
         <div className="flex flex-wrap items-center justify-between gap-space-sm pt-1 text-label-sm font-label-sm border-t border-surface-container-high">
@@ -153,12 +352,10 @@ export default function SearchBar() {
               <button
                 key={lvl.id}
                 type="button"
-                onClick={() => setSelectedJlpt(lvl.id)}
+                onClick={() => onJlptChange && onJlptChange(lvl.id)}
                 className={`px-2 py-0.5 rounded transition-colors ${
                   selectedJlpt === lvl.id
-                    ? lvl.id === 'N2'
-                      ? 'bg-primary-fixed text-on-primary-fixed font-bold border border-outline-variant'
-                      : 'bg-surface-container-highest text-on-surface font-semibold'
+                    ? 'bg-primary-fixed text-on-primary-fixed font-bold border border-outline-variant shadow-xs'
                     : 'text-on-surface-variant hover:bg-surface-container-low'
                 }`}
               >
@@ -174,10 +371,10 @@ export default function SearchBar() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setSelectedType(item.id)}
+                onClick={() => onTypeChange && onTypeChange(item.id)}
                 className={`px-2 py-0.5 rounded transition-colors ${
                   selectedType === item.id
-                    ? 'bg-surface-container-low text-secondary font-medium hover:bg-surface-container'
+                    ? 'bg-secondary-fixed text-on-secondary-fixed-variant font-medium border border-outline-variant shadow-xs'
                     : 'text-on-surface-variant hover:bg-surface-container-low'
                 }`}
               >

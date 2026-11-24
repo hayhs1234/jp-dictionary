@@ -2,14 +2,87 @@ import { useState } from 'react';
 import Icon from '../common/Icon.jsx';
 import KanjiCard from './KanjiCard.jsx';
 
-export default function WordCard() {
+export default function WordCard({ word, isLoading = false }) {
   const [deckMenuOpen, setDeckMenuOpen] = useState(false);
+  const [selectedDeck, setSelectedDeck] = useState('Từ vựng N3-N2, Thiên nhiên');
+
+  const handleSpeak = (text) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && text) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 0.85;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // 1. Loading Skeleton State
+  if (isLoading) {
+    return (
+      <article className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-space-lg shadow-sm space-y-space-lg animate-pulse">
+        <div className="flex justify-between items-start">
+          <div className="space-y-3">
+            <div className="h-10 w-48 bg-surface-container rounded-lg" />
+            <div className="flex gap-2">
+              <div className="h-5 w-24 bg-surface-container rounded" />
+              <div className="h-5 w-28 bg-surface-container rounded" />
+            </div>
+          </div>
+          <div className="h-9 w-36 bg-surface-container rounded-lg" />
+        </div>
+        <div className="space-y-2 py-4">
+          <div className="h-4 w-32 bg-surface-container rounded" />
+          <div className="h-16 w-full bg-surface-container-low rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+          <div className="h-32 bg-surface-container-low rounded-xl" />
+          <div className="h-32 bg-surface-container-low rounded-xl" />
+          <div className="h-32 bg-surface-container-low rounded-xl" />
+        </div>
+      </article>
+    );
+  }
+
+  // 2. Empty / Not Found State
+  if (!word) {
+    return (
+      <article className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-space-xl shadow-sm text-center space-y-space-md">
+        <div className="w-16 h-16 mx-auto rounded-full bg-surface-container-high flex items-center justify-center text-outline">
+          <Icon name="search_off" className="text-3xl" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-headline-sm font-headline-sm text-on-surface font-bold">
+            Không tìm thấy từ vựng phù hợp
+          </h2>
+          <p className="text-body-md text-on-surface-variant max-w-md mx-auto">
+            Vui lòng kiểm tra lại chính tả hoặc thử tìm kiếm bằng chữ Hán, Hiragana, Romaji hoặc nghĩa tiếng Việt.
+          </p>
+        </div>
+      </article>
+    );
+  }
+
+  const {
+    kanji = '',
+    hiragana = '',
+    romaji = '',
+    hanViet = '',
+    pitchAccent = '[0] 平板 (Heiban)',
+    jlptLevel = 'N5',
+    partOfSpeech = 'Từ vựng',
+    primaryMeaning = '',
+    detailedMeaning = '',
+    furiganaSegments = [],
+    kanjiBreakdown = [],
+    examples = [],
+    synonyms = [],
+  } = word;
 
   return (
     <article className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-space-lg shadow-sm relative overflow-hidden">
       {/* Subtle Japanese Watermark Kanji in Corner */}
       <div className="absolute -right-6 -bottom-8 select-none pointer-events-none opacity-5 font-kanji-headline text-[130px] text-on-surface">
-        木漏日
+        {kanji || hiragana}
       </div>
 
       {/* Header & Kanji Meta */}
@@ -18,13 +91,24 @@ export default function WordCard() {
           {/* Big Kanji Display with Furigana */}
           <div className="flex items-baseline space-x-space-md">
             <h1 className="font-kanji-headline text-kanji-headline text-on-surface tracking-wide">
-              <ruby>
-                木<rt>こ</rt>漏<rt>れ</rt>日<rt>び</rt>
-              </ruby>
+              {furiganaSegments && furiganaSegments.length > 0 ? (
+                furiganaSegments.map((seg, idx) => (
+                  <ruby key={idx} className="mr-0.5">
+                    {seg.ruby}
+                    {seg.rt && <rt>{seg.rt}</rt>}
+                  </ruby>
+                ))
+              ) : (
+                <ruby>
+                  {kanji}
+                  {hiragana && <rt>{hiragana}</rt>}
+                </ruby>
+              )}
             </h1>
-            {/* Native Audio Pronunciation */}
+            {/* Native Audio Pronunciation Button */}
             <button
               type="button"
+              onClick={() => handleSpeak(kanji || hiragana)}
               className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-primary-fixed border border-outline-variant text-primary flex items-center justify-center transition-transform active:scale-95 shadow-xs"
               title="Phát âm chuẩn Tokyo (Heiban)"
             >
@@ -32,30 +116,40 @@ export default function WordCard() {
             </button>
           </div>
 
-          {/* Sub-readings: Romaji & Hán Việt */}
+          {/* Sub-readings: Romaji, Hán Việt, Pitch Accent */}
           <div className="flex flex-wrap items-center gap-space-md mt-2 text-body-sm font-body-sm text-on-surface-variant">
-            <span className="bg-surface-container px-2.5 py-0.5 rounded text-on-surface font-medium">
-              Romaji: <strong className="text-primary">komorebi</strong>
-            </span>
-            <span className="bg-surface-container px-2.5 py-0.5 rounded text-on-surface font-medium">
-              Hán Việt: <strong className="text-on-surface">MỘC LẬU NHẬT</strong>
-            </span>
-            <span className="flex items-center space-x-1 text-label-sm font-label-sm text-secondary">
-              <Icon name="graphic_eq" className="text-base" />
-              <span>Âm điệu: [0] 平板 (Heiban)</span>
-            </span>
+            {romaji && (
+              <span className="bg-surface-container px-2.5 py-0.5 rounded text-on-surface font-medium">
+                Romaji: <strong className="text-primary">{romaji}</strong>
+              </span>
+            )}
+            {hanViet && (
+              <span className="bg-surface-container px-2.5 py-0.5 rounded text-on-surface font-medium">
+                Hán Việt: <strong className="text-on-surface">{hanViet}</strong>
+              </span>
+            )}
+            {pitchAccent && (
+              <span className="flex items-center space-x-1 text-label-sm font-label-sm text-secondary">
+                <Icon name="graphic_eq" className="text-base" />
+                <span>Âm điệu: {pitchAccent}</span>
+              </span>
+            )}
           </div>
         </div>
 
         {/* Primary CTAs & Deck selector */}
         <div className="flex flex-col items-start md:items-end space-y-space-sm shrink-0">
           <div className="flex items-center space-x-2">
-            <span className="bg-surface-container-highest text-on-surface px-2.5 py-1 rounded text-label-sm font-label-sm font-bold">
-              N2 / Từ vựng cao cấp
-            </span>
-            <span className="bg-secondary-fixed text-on-secondary-fixed-variant px-2.5 py-1 rounded text-label-sm font-label-sm font-bold">
-              Danh từ [名]
-            </span>
+            {jlptLevel && (
+              <span className="bg-surface-container-highest text-on-surface px-2.5 py-1 rounded text-label-sm font-label-sm font-bold">
+                {jlptLevel}
+              </span>
+            )}
+            {partOfSpeech && (
+              <span className="bg-secondary-fixed text-on-secondary-fixed-variant px-2.5 py-1 rounded text-label-sm font-label-sm font-bold">
+                {partOfSpeech}
+              </span>
+            )}
           </div>
 
           {/* Add to Flashcard Button with Dropdown picker */}
@@ -77,38 +171,32 @@ export default function WordCard() {
                 <Icon name="arrow_drop_down" className="text-lg" />
               </button>
               {deckMenuOpen && (
-                <div className="absolute right-0 mt-1 w-52 bg-surface-container-lowest border border-surface-container-high rounded-lg shadow-lg py-1 z-20">
+                <div className="absolute right-0 mt-1 w-56 bg-surface-container-lowest border border-surface-container-high rounded-lg shadow-lg py-1 z-20">
                   <div className="px-3 py-1.5 text-xs text-outline font-semibold border-b border-surface-container-high">
                     Chọn bộ thẻ lưu trữ
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setDeckMenuOpen(false)}
-                    className="w-full text-left px-3 py-2 text-label-sm font-label-sm text-on-surface hover:bg-surface-container-low flex items-center justify-between"
-                  >
-                    <span>Từ vựng N3-N2, Thiên nhiên</span>
-                    <span className="text-primary text-xs">✓</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeckMenuOpen(false)}
-                    className="w-full text-left px-3 py-2 text-label-sm font-label-sm text-on-surface hover:bg-surface-container-low"
-                  >
-                    Từ vựng thường nhật
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeckMenuOpen(false)}
-                    className="w-full text-left px-3 py-2 text-label-sm font-label-sm text-on-surface hover:bg-surface-container-low"
-                  >
-                    Bộ thẻ Yoji & Văn học
-                  </button>
+                  {['Từ vựng N3-N2, Thiên nhiên', 'Từ vựng thường nhật', 'Bộ thẻ Yoji & Văn học'].map(
+                    (deck) => (
+                      <button
+                        key={deck}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDeck(deck);
+                          setDeckMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-label-sm font-label-sm text-on-surface hover:bg-surface-container-low flex items-center justify-between"
+                      >
+                        <span>{deck}</span>
+                        {selectedDeck === deck && <span className="text-primary text-xs">✓</span>}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>
           </div>
           <span className="text-label-sm font-label-sm text-outline">
-            Đã thêm vào: <em className="not-italic text-on-surface font-medium">Từ vựng N3-N2, Thiên nhiên</em>
+            Đã thêm vào: <em className="not-italic text-on-surface font-medium">{selectedDeck}</em>
           </span>
         </div>
       </div>
@@ -121,208 +209,121 @@ export default function WordCard() {
         </h2>
         <div className="p-space-md bg-surface-container-low rounded-lg border-l-4 border-primary">
           <p className="text-headline-sm font-headline-sm text-on-surface font-semibold leading-relaxed">
-            Ánh nắng lọt qua kẽ lá
+            {primaryMeaning || 'Đang cập nhật định nghĩa...'}
           </p>
-          <p className="text-body-md font-body-md text-on-surface-variant mt-1 leading-normal">
-            Hiện tượng quang học và mỹ học tự nhiên khi ánh sáng mặt trời chiếu xuyên qua vòm tán lá cây rậm rạp tạo thành những vệt sáng lấp lánh đan xen trên mặt đất hoặc bờ tường.
-          </p>
+          {detailedMeaning && (
+            <p className="text-body-md font-body-md text-on-surface-variant mt-1 leading-normal">
+              {detailedMeaning}
+            </p>
+          )}
         </div>
       </div>
 
       {/* KANJI BREAKDOWN SECTION */}
-      <div className="pt-space-md border-t border-surface-container-high">
-        <h3 className="text-label-md font-label-md text-secondary font-bold mb-space-md flex items-center space-x-1.5">
-          <Icon name="draw" className="text-lg" />
-          <span>Phân tích cấu tạo chữ Hán (Hán tự cấu thành)</span>
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
-          {/* Kanji 1: 木 */}
-          <KanjiCard
-            character="木"
-            strokeCount="4"
-            jlptLevel="Cấp độ N5"
-            hanViet="MỘC (Cây)"
-            onReadings="モク, ボク"
-            kunReadings="き, こ"
-            meaning="Cây cối, gỗ, chất liệu thực vật."
-          />
-
-          {/* Kanji 2: 漏 */}
-          <KanjiCard
-            character="漏"
-            strokeCount="14"
-            jlptLevel="Cấp độ N1"
-            hanViet="LẬU (Rò rỉ, lọt)"
-            onReadings="ロウ"
-            kunReadings="も-る, も-れる"
-            meaning="Rò rỉ nước, lọt ánh sáng, sơ hở."
-          />
-
-          {/* Kanji 3: 日 */}
-          <KanjiCard
-            character="日"
-            strokeCount="4"
-            jlptLevel="Cấp độ N5"
-            hanViet="NHẬT (Mặt trời)"
-            onReadings="ニチ, ジツ"
-            kunReadings="ひ, -び"
-            meaning="Thái dương, ban ngày, nhật quang."
-          />
+      {kanjiBreakdown && kanjiBreakdown.length > 0 && (
+        <div className="pt-space-md border-t border-surface-container-high">
+          <h3 className="text-label-md font-label-md text-secondary font-bold mb-space-md flex items-center space-x-1.5">
+            <Icon name="draw" className="text-lg" />
+            <span>Phân tích cấu tạo chữ Hán (Hán tự cấu thành)</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+            {kanjiBreakdown.map((kanjiItem) => (
+              <KanjiCard
+                key={kanjiItem.character}
+                character={kanjiItem.character}
+                strokeCount={kanjiItem.strokeCount}
+                jlptLevel={kanjiItem.jlptLevel}
+                hanViet={kanjiItem.hanViet}
+                onReadings={kanjiItem.onReadings}
+                kunReadings={kanjiItem.kunReadings}
+                meaning={kanjiItem.meaning}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* EXAMPLE SENTENCES WITH FURIGANA & AUDIO */}
-      <div className="mt-space-lg pt-space-md border-t border-surface-container-high">
-        <h3 className="text-label-md font-label-md text-primary font-bold mb-space-md flex items-center space-x-1.5">
-          <Icon name="format_quote" className="text-lg" />
-          <span>Ví dụ thực tế trong ngữ cảnh (例文)</span>
-        </h3>
-        <div className="space-y-space-md">
-          {/* Example 1 */}
-          <div className="p-space-md bg-surface-container-lowest border border-surface-container-high rounded-xl hover:border-outline-variant transition-colors">
-            <div className="flex items-start justify-between gap-space-sm">
-              <div className="space-y-1">
-                <div className="text-body-lg font-body-lg text-on-surface">
-                  <ruby>
-                    森<rt>もり</rt>
-                  </ruby>
-                  の
-                  <ruby>
-                    中<rt>なか</rt>
-                  </ruby>
-                  を
-                  <ruby>
-                    歩<rt>ある</rt>
-                  </ruby>
-                  くと、
-                  <ruby>
-                    美<rt>うつく</rt>
-                  </ruby>
-                  しい
-                  <ruby>
-                    木漏<rt>こも</rt>
-                  </ruby>
-                  れ
-                  <ruby>
-                    日<rt>び</rt>
-                  </ruby>
-                  が
-                  <ruby>
-                    地面<rt>じめん</rt>
-                  </ruby>
-                  を
-                  <ruby>
-                    照<rt>て</rt>
-                  </ruby>
-                  らしていた。
-                </div>
-                <p className="text-body-md font-body-md text-on-surface-variant font-medium">
-                  Đi dạo trong rừng, những tia nắng len qua kẽ lá rọi sáng tuyệt đẹp xuống mặt đất.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="shrink-0 p-2 text-secondary hover:text-primary hover:bg-surface-container rounded-lg"
-                title="Nghe câu ví dụ"
+      {examples && examples.length > 0 && (
+        <div className="mt-space-lg pt-space-md border-t border-surface-container-high">
+          <h3 className="text-label-md font-label-md text-primary font-bold mb-space-md flex items-center space-x-1.5">
+            <Icon name="format_quote" className="text-lg" />
+            <span>Ví dụ thực tế trong ngữ cảnh (例文)</span>
+          </h3>
+          <div className="space-y-space-md">
+            {examples.map((ex) => (
+              <div
+                key={ex.id || ex.japaneseText}
+                className="p-space-md bg-surface-container-lowest border border-surface-container-high rounded-xl hover:border-outline-variant transition-colors"
               >
-                <Icon name="volume_up" className="text-xl" />
-              </button>
-            </div>
-            <div className="mt-2 flex items-center space-x-2 text-label-sm font-label-sm text-outline">
-              <span className="bg-surface-container-low px-2 py-0.5 rounded">Ngữ cảnh: Miêu tả văn học / Cảnh sắc</span>
-              <span>•</span>
-              <span>Trình độ: Trung cấp N3</span>
-            </div>
-          </div>
-
-          {/* Example 2 */}
-          <div className="p-space-md bg-surface-container-lowest border border-surface-container-high rounded-xl hover:border-outline-variant transition-colors">
-            <div className="flex items-start justify-between gap-space-sm">
-              <div className="space-y-1">
-                <div className="text-body-lg font-body-lg text-on-surface">
-                  <ruby>
-                    窓<rt>まど</rt>
-                  </ruby>
-                  から
-                  <ruby>
-                    差<rt>さ</rt>
-                  </ruby>
-                  し
-                  <ruby>
-                    込<rt>こ</rt>
-                  </ruby>
-                  む
-                  <ruby>
-                    木漏<rt>こも</rt>
-                  </ruby>
-                  れ
-                  <ruby>
-                    日<rt>び</rt>
-                  </ruby>
-                  を
-                  <ruby>
-                    眺<rt>なが</rt>
-                  </ruby>
-                  めながら、
-                  <ruby>
-                    静<rt>しず</rt>
-                  </ruby>
-                  かに
-                  <ruby>
-                    本<rt>ほん</rt>
-                  </ruby>
-                  を
-                  <ruby>
-                    読<rt>よ</rt>
-                  </ruby>
-                  むのが
-                  <ruby>
-                    好<rt>す</rt>
-                  </ruby>
-                  きだ。
+                <div className="flex items-start justify-between gap-space-sm">
+                  <div className="space-y-1">
+                    <div className="text-body-lg font-body-lg text-on-surface font-medium">
+                      {ex.japaneseText}
+                    </div>
+                    {ex.reading && ex.reading !== ex.japaneseText && (
+                      <p className="text-body-sm font-body-sm text-outline font-medium">
+                        {ex.reading}
+                      </p>
+                    )}
+                    <p className="text-body-md font-body-md text-on-surface-variant font-medium">
+                      {ex.translation}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSpeak(ex.japaneseText)}
+                    className="shrink-0 p-2 text-secondary hover:text-primary hover:bg-surface-container rounded-lg transition-colors"
+                    title="Nghe câu ví dụ"
+                  >
+                    <Icon name="volume_up" className="text-xl" />
+                  </button>
                 </div>
-                <p className="text-body-md font-body-md text-on-surface-variant font-medium">
-                  Tôi thích ngồi đọc sách trong yên ả, ngắm nhìn vạt nắng xuyên qua kẽ lá rọi vào qua khung cửa sổ.
-                </p>
+                {(ex.context || ex.level) && (
+                  <div className="mt-2 flex items-center space-x-2 text-label-sm font-label-sm text-outline">
+                    {ex.context && (
+                      <span className="bg-surface-container-low px-2 py-0.5 rounded">
+                        Ngữ cảnh: {ex.context}
+                      </span>
+                    )}
+                    {ex.context && ex.level && <span>•</span>}
+                    {ex.level && <span>Trình độ: {ex.level}</span>}
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                className="shrink-0 p-2 text-secondary hover:text-primary hover:bg-surface-container rounded-lg"
-                title="Nghe câu ví dụ"
-              >
-                <Icon name="volume_up" className="text-xl" />
-              </button>
-            </div>
-            <div className="mt-2 flex items-center space-x-2 text-label-sm font-label-sm text-outline">
-              <span className="bg-surface-container-low px-2 py-0.5 rounded">Ngữ cảnh: Đời sống thường nhật</span>
-              <span>•</span>
-              <span>Trình độ: N3</span>
-            </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* RELATED SYNONYMS & GRAMMAR SECTION */}
-      <div className="mt-space-lg pt-space-md border-t border-surface-container-high">
-        <h3 className="text-label-md font-label-md text-secondary font-bold mb-space-sm flex items-center space-x-1.5">
-          <Icon name="hub" className="text-lg" />
-          <span>Từ đồng nghĩa &amp; Mẫu ngữ pháp liên quan</span>
-        </h3>
-        <div className="flex flex-wrap gap-space-sm">
-          <div className="p-2.5 rounded-lg border border-surface-container-high bg-surface-bright flex items-center space-x-2">
-            <span className="text-primary font-bold">日光 (にっこう)</span>
-            <span className="text-label-sm font-label-sm text-on-surface-variant">Ánh sáng mặt trời (Đồng nghĩa rộng)</span>
-          </div>
-          <div className="p-2.5 rounded-lg border border-surface-container-high bg-surface-bright flex items-center space-x-2">
-            <span className="text-primary font-bold">陽光 (ようこう)</span>
-            <span className="text-label-sm font-label-sm text-on-surface-variant">Dương quang, nắng ấm</span>
-          </div>
-          <div className="p-2.5 rounded-lg border border-surface-container-high bg-surface-bright flex items-center space-x-2">
-            <span className="text-secondary font-bold">〜ながら (Vừa... vừa)</span>
-            <span className="text-label-sm font-label-sm text-on-surface-variant">Ngữ pháp N4 thường dùng kèm</span>
+      {synonyms && synonyms.length > 0 && (
+        <div className="mt-space-lg pt-space-md border-t border-surface-container-high">
+          <h3 className="text-label-md font-label-md text-secondary font-bold mb-space-sm flex items-center space-x-1.5">
+            <Icon name="hub" className="text-lg" />
+            <span>Từ đồng nghĩa &amp; Mẫu ngữ pháp liên quan</span>
+          </h3>
+          <div className="flex flex-wrap gap-space-sm">
+            {synonyms.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-2.5 rounded-lg border border-surface-container-high bg-surface-bright flex items-center space-x-2"
+              >
+                <span
+                  className={`font-bold ${
+                    item.type === 'grammar' ? 'text-secondary' : 'text-primary'
+                  }`}
+                >
+                  {item.word}
+                </span>
+                <span className="text-label-sm font-label-sm text-on-surface-variant">
+                  {item.meaning}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </article>
   );
 }

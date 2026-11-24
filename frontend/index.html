@@ -1,88 +1,150 @@
 <!DOCTYPE html>
-<html lang="vi" class="dark">
+<html lang="vi" class="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JP Dictionary - Từ Điển Tiếng Nhật Thông Minh</title>
+    <title>Komorebi (木漏れ日) - Tra cứu &amp; Dịch thuật Tiếng Nhật Chuyên Sâu</title>
     <meta name="description" content="Nền tảng tra cứu từ điển tiếng Nhật, Kanji, ngữ pháp và học từ vựng thông minh." />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
 
-    <!-- Google Fonts: Inter, Plus Jakarta Sans, Noto Sans JP -->
+    <!-- Google Font: Noto Sans (Japanese & Vietnamese support) & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
 
-    <!-- Tailwind CSS Play CDN with plugins: forms, container-queries -->
+    <!-- Material Symbols Outlined -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind CSS with custom theme config -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script>
+    <script id="tailwind-config">
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
-            fontFamily: {
-              sans: ['"Inter"', 'system-ui', '-apple-system', 'sans-serif'],
-              display: ['"Plus Jakarta Sans"', 'sans-serif'],
-              jp: ['"Noto Sans JP"', 'sans-serif'],
-            },
             colors: {
+              'surface-container-low': '#f0f5f0',
+              'error-container': '#ffdad6',
+              'on-background': '#181d1a',
+              'surface-container': '#ebefea',
+              'inverse-surface': '#2c322e',
+              'outline-variant': '#e2beba',
+              'on-secondary-container': '#3e5980',
+              'inverse-on-surface': '#edf2ed',
+              'on-surface': '#181d1a',
+              'surface-container-high': '#e5e9e4',
+              secondary: '#455f87',
+              'on-surface-variant': '#5a403d',
+              error: '#ba1a1a',
+              'surface-container-highest': '#dfe4df',
+              'secondary-container': '#b5d0fd',
+              'on-secondary': '#ffffff',
+              'primary-container': '#bc2c27',
+              'on-primary-fixed': '#410002',
+              'tertiary-fixed-dim': '#ffb4ac',
+              'tertiary-container': '#be2826',
+              outline: '#8e706c',
+              'on-primary': '#ffffff',
+              'on-secondary-fixed-variant': '#2d486d',
+              'on-error': '#ffffff',
+              'primary-fixed-dim': '#ffb4ab',
+              'surface-variant': '#dfe4df',
+              'surface-tint': '#b42622',
+              'secondary-fixed-dim': '#adc8f5',
+              'surface-dim': '#d7dbd6',
+              'surface-container-lowest': '#ffffff',
+              'secondary-fixed': '#d5e3ff',
+              'on-tertiary': '#ffffff',
+              'tertiary-fixed': '#ffdad6',
+              primary: '#990f12',
+              'on-tertiary-fixed': '#410002',
+              'on-secondary-fixed': '#001c3b',
+              'inverse-primary': '#ffb4ab',
+              'on-tertiary-container': '#ffd8d3',
+              'primary-fixed': '#ffdad6',
+              'surface-bright': '#f6fbf5',
+              background: '#f6fbf5',
+              'on-primary-fixed-variant': '#92060d',
+              'on-primary-container': '#ffd8d4',
+              'on-tertiary-fixed-variant': '#93000d',
+              surface: '#f6fbf5',
+              'on-error-container': '#93000a',
+              tertiary: '#9b0811',
+              // backward-compatibility brand tokens
               brand: {
-                50: 'var(--brand-50)',
-                100: 'var(--brand-100)',
-                200: 'var(--brand-200)',
-                300: 'var(--brand-300)',
-                400: 'var(--brand-400)',
-                500: 'var(--brand-500)',
-                600: 'var(--brand-600)',
-                700: 'var(--brand-700)',
-                800: 'var(--brand-800)',
-                900: 'var(--brand-900)',
-                DEFAULT: 'var(--brand-500)',
-              },
-              surface: {
-                base: 'var(--surface-base)',
-                card: 'var(--surface-card)',
-                elevated: 'var(--surface-elevated)',
-                border: 'var(--surface-border)',
-              },
-              content: {
-                primary: 'var(--content-primary)',
-                secondary: 'var(--content-secondary)',
-                muted: 'var(--content-muted)',
-              },
-              accent: {
-                sakura: 'var(--accent-sakura)',
-                gold: 'var(--accent-gold)',
-                teal: 'var(--accent-teal)',
-                indigo: 'var(--accent-indigo)',
+                50: '#fdf2f2',
+                100: '#fde8e8',
+                200: '#fbd5d5',
+                300: '#f8b4b4',
+                400: '#f98080',
+                500: '#990f12',
+                600: '#870d10',
+                700: '#750b0e',
+                800: '#630a0c',
+                900: '#51080a',
+                DEFAULT: '#990f12',
               },
             },
-            boxShadow: {
-              glass: 'var(--shadow-glass)',
-              'glow-brand': '0 0 25px -5px rgba(239, 68, 68, 0.35)',
-              'glow-sakura': '0 0 25px -5px rgba(244, 63, 94, 0.4)',
+            borderRadius: {
+              DEFAULT: '0.125rem',
+              lg: '0.25rem',
+              xl: '0.5rem',
+              full: '0.75rem',
             },
-            backdropBlur: {
-              xs: '2px',
+            spacing: {
+              gutter: '1.5rem',
+              'space-xs': '0.25rem',
+              'space-xl': '2.5rem',
+              'space-sm': '0.5rem',
+              'space-md': '1rem',
+              margin: '2rem',
+              'margin-mobile': '1rem',
+              'gutter-mobile': '0.75rem',
+              'space-lg': '1.5rem',
             },
-            animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 6s ease-in-out infinite',
+            fontFamily: {
+              'headline-sm': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'headline-md': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'label-md': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'kanji-headline-mobile': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'label-sm': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'body-lg': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'body-sm': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'kanji-headline': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              furigana: ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'headline-lg': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'display-hero': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'body-md': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              'display-hero-mobile': ['Noto Sans', 'Noto Sans JP', 'sans-serif'],
+              sans: ['Noto Sans', 'Noto Sans JP', 'Inter', 'system-ui', 'sans-serif'],
             },
-            keyframes: {
-              float: {
-                '0%, 100%': { transform: 'translateY(0px)' },
-                '50%': { transform: 'translateY(-8px)' },
-              },
+            fontSize: {
+              'headline-sm': ['18px', { lineHeight: '26px', fontWeight: '600' }],
+              'headline-md': ['22px', { lineHeight: '30px', fontWeight: '600' }],
+              'label-md': ['13px', { lineHeight: '18px', letterSpacing: '0.01em', fontWeight: '500' }],
+              'kanji-headline-mobile': ['38px', { lineHeight: '48px', letterSpacing: '0.02em', fontWeight: '500' }],
+              'label-sm': ['11px', { lineHeight: '16px', letterSpacing: '0.04em', fontWeight: '600' }],
+              'body-lg': ['17px', { lineHeight: '28px', fontWeight: '400' }],
+              'body-sm': ['13px', { lineHeight: '20px', fontWeight: '400' }],
+              'kanji-headline': ['56px', { lineHeight: '68px', letterSpacing: '0.04em', fontWeight: '500' }],
+              furigana: ['11px', { lineHeight: '14px', letterSpacing: '0.02em', fontWeight: '500' }],
+              'headline-lg': ['28px', { lineHeight: '36px', letterSpacing: '-0.01em', fontWeight: '600' }],
+              'display-hero': ['48px', { lineHeight: '56px', letterSpacing: '-0.02em', fontWeight: '700' }],
+              'body-md': ['15px', { lineHeight: '24px', fontWeight: '400' }],
+              'display-hero-mobile': ['32px', { lineHeight: '40px', letterSpacing: '-0.01em', fontWeight: '700' }],
             },
           },
         },
       };
     </script>
   </head>
-  <body class="bg-[var(--surface-base)] text-[var(--content-primary)] font-sans antialiased selection:bg-brand-500 selection:text-white min-h-screen overflow-x-hidden">
+  <body class="bg-background text-on-surface antialiased min-h-screen flex flex-col font-body-md text-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

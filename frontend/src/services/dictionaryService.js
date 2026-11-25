@@ -525,15 +525,19 @@ function localSearch(params = {}) {
   }
 
   if (type && type !== 'all') {
-    const typeMap = {
-      noun: 'Danh từ',
-      verb: 'Động từ',
-      adj: 'Tính từ',
-      idiom: 'Quán dụng ngữ',
+    const typeCategories = {
+      noun: ['Danh từ', '[名]', 'NOUN'],
+      verb: ['Động từ', '[動]', 'VERB'],
+      adj: ['Tính từ', '[形]', 'ADJECTIVE'],
+      adverb: ['Phó từ', '[副]', 'ADVERB'],
+      idiom: ['Quán dụng ngữ', '[慣用]', 'IDIOM'],
     };
-    const targetLabel = typeMap[type];
-    if (targetLabel) {
-      results = results.filter((w) => w.partOfSpeech.includes(targetLabel));
+    const targets = typeCategories[type.toLowerCase()] || [];
+    if (targets.length > 0) {
+      results = results.filter((w) => {
+        const pos = w.partOfSpeech || '';
+        return targets.some((t) => pos.includes(t) || pos.toUpperCase().includes(t));
+      });
     }
   }
 

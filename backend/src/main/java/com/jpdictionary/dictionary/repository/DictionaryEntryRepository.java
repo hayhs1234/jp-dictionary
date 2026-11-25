@@ -25,11 +25,27 @@ public interface DictionaryEntryRepository extends JpaRepository<DictionaryEntry
             + "LEFT JOIN e.senses s "
             + "WHERE (f.writtenForm = :term OR r.reading = :term OR LOWER(r.romaji) = LOWER(:term)) "
             + "AND (:jlptLevel IS NULL OR e.jlptLevel = :jlptLevel) "
-            + "AND (:posPattern IS NULL OR LOWER(s.partOfSpeech) LIKE LOWER(CONCAT('%', :posPattern, '%')))")
+            + "AND (:posCategory IS NULL OR :posCategory = 'ALL' "
+            + "     OR (s.posCategory IS NOT NULL AND LOWER(s.posCategory) LIKE LOWER(CONCAT('%', :posCategory, '%'))) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'VERB' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'v1%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'v5%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE '%vs%')) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'NOUN' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'n %' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'n,%' "
+            + "              OR LOWER(s.partOfSpeech) = 'n')) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'ADJECTIVE' "
+            + "         AND LOWER(s.partOfSpeech) LIKE 'adj-%') "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'ADVERB' "
+            + "         AND LOWER(s.partOfSpeech) LIKE 'adv%') "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'IDIOM' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'id%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'exp%')))")
     List<DictionaryEntry> findExactMatches(
             @Param("term") String term,
             @Param("jlptLevel") Byte jlptLevel,
-            @Param("posPattern") String posPattern
+            @Param("posCategory") String posCategory
     );
 
     @Query("SELECT DISTINCT e FROM DictionaryEntry e "
@@ -43,11 +59,27 @@ public interface DictionaryEntryRepository extends JpaRepository<DictionaryEntry
             + "   OR LOWER(r.romaji) LIKE LOWER(CONCAT('%', :query, '%')) "
             + "   OR LOWER(g.meaning) LIKE LOWER(CONCAT('%', :query, '%'))) "
             + "AND (:jlptLevel IS NULL OR e.jlptLevel = :jlptLevel) "
-            + "AND (:posPattern IS NULL OR LOWER(s.partOfSpeech) LIKE LOWER(CONCAT('%', :posPattern, '%')))")
+            + "AND (:posCategory IS NULL OR :posCategory = 'ALL' "
+            + "     OR (s.posCategory IS NOT NULL AND LOWER(s.posCategory) LIKE LOWER(CONCAT('%', :posCategory, '%'))) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'VERB' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'v1%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'v5%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE '%vs%')) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'NOUN' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'n %' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'n,%' "
+            + "              OR LOWER(s.partOfSpeech) = 'n')) "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'ADJECTIVE' "
+            + "         AND LOWER(s.partOfSpeech) LIKE 'adj-%') "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'ADVERB' "
+            + "         AND LOWER(s.partOfSpeech) LIKE 'adv%') "
+            + "     OR (s.posCategory IS NULL AND :posCategory = 'IDIOM' "
+            + "         AND (LOWER(s.partOfSpeech) LIKE 'id%' "
+            + "              OR LOWER(s.partOfSpeech) LIKE 'exp%')))")
     List<DictionaryEntry> searchEntries(
             @Param("query") String query,
             @Param("jlptLevel") Byte jlptLevel,
-            @Param("posPattern") String posPattern,
+            @Param("posCategory") String posCategory,
             Pageable pageable
     );
 

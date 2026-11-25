@@ -57,5 +57,22 @@ describe('Frontend dictionaryService unit tests', () => {
     assert.equal(word.senses[1].meaning, 'đính chính, sửa lỗi sai, chữa trị');
     assert.equal(word.primaryMeaning, 'sửa chữa, chỉnh sửa');
   });
+
+  test('search filters by POS type correctly (noun, verb, adj)', async () => {
+    const verbs = await dictionaryService.search({ q: '', type: 'verb' });
+    assert.ok(Array.isArray(verbs));
+    assert.ok(verbs.length > 0);
+    assert.ok(verbs.every((w) => w.partOfSpeech.includes('Động từ') || w.partOfSpeech.includes('動')));
+
+    const nouns = await dictionaryService.search({ q: '', type: 'noun' });
+    assert.ok(Array.isArray(nouns));
+    assert.ok(nouns.length > 0);
+    assert.ok(nouns.every((w) => w.partOfSpeech.includes('Danh từ') || w.partOfSpeech.includes('名')));
+
+    const adjs = await dictionaryService.search({ q: '', type: 'adj' });
+    assert.ok(Array.isArray(adjs));
+    assert.ok(adjs.length > 0);
+    assert.ok(adjs.every((w) => w.partOfSpeech.includes('Tính từ') || w.partOfSpeech.includes('形')));
+  });
 });
 

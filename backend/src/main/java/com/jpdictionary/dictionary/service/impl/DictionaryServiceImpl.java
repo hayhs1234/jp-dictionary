@@ -9,6 +9,7 @@ import com.jpdictionary.dictionary.dto.SynonymDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
 import com.jpdictionary.dictionary.dto.WordSenseDto;
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
+import com.jpdictionary.dictionary.enums.PosCategory;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
@@ -50,14 +51,15 @@ public class DictionaryServiceImpl implements DictionaryService {
     public List<WordDetailDto> search(String query, String jlpt, String type) {
         String cleanQuery = (query != null) ? query.trim() : "";
         Byte jlptLevel = parseJlptLevel(jlpt);
-        String posPattern = parsePosPattern(type);
+        PosCategory category = PosCategory.fromCode(type);
+        String posCategoryParam = (category != PosCategory.ALL) ? category.name() : null;
 
-        if (cleanQuery.isEmpty() && jlptLevel == null && posPattern == null) {
+        if (cleanQuery.isEmpty() && jlptLevel == null && posCategoryParam == null) {
             return Collections.emptyList();
         }
 
-        List<DictionaryEntry> results = collectEntries(cleanQuery, jlptLevel, posPattern);
-        return mapEntriesToDtos(results);
+        List<DictionaryEntry> results = collectEntries(cleanQuery, jlptLevel, posCategoryParam);
+        return mapEntriesToDtos(results, category);
     }
 
     private List<DictionaryEntry> collectEntries(String query, Byte jlpt, String pos) {
@@ -91,10 +93,10 @@ public class DictionaryServiceImpl implements DictionaryService {
         return results;
     }
 
-    private List<WordDetailDto> mapEntriesToDtos(List<DictionaryEntry> entries) {
+    private List<WordDetailDto> mapEntriesToDtos(List<DictionaryEntry> entries, PosCategory targetCategory) {
         List<WordDetailDto> dtos = new ArrayList<>();
         for (DictionaryEntry entry : entries) {
-            dtos.add(mapToWordDetail(entry));
+            dtos.add(mapToWordDetail(entry, targetCategory));
         }
         return dtos;
     }
@@ -203,6 +205,10 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     private WordDetailDto mapToWordDetail(DictionaryEntry entry) {
+        return mapToWordDetail(entry, PosCategory.ALL);
+    }
+
+    private WordDetailDto mapToWordDetail(DictionaryEntry entry, PosCategory targetCategory) {
         String kanji = extractPrimaryKanji(entry);
         DictionaryReading primaryReading = extractPrimaryReading(entry);
         String hiragana = primaryReading != null ? primaryReading.getReading() : "";
@@ -211,7 +217,7 @@ public class DictionaryServiceImpl implements DictionaryService {
         List<WordSenseDto> senseDtos = mapSenses(entry.getSenses());
         String primaryMeaning = resolvePrimaryMeaning(senseDtos);
         String detailedMeaning = resolveDetailedMeaning(senseDtos, primaryMeaning);
-        String pos = resolvePrimaryPos(senseDtos);
+        String pos = resolvePrimaryPos(senseDtos, targetCategory);
 
         String jlptStr = entry.getJlptLevel() != null ? "N" + entry.getJlptLevel() : "N/A";
         String hanViet = deriveHanViet(kanji);
@@ -318,8 +324,18 @@ public class DictionaryServiceImpl implements DictionaryService {
         return (detailed != null && !detailed.isEmpty()) ? detailed : defaultMeaning;
     }
 
-    private String resolvePrimaryPos(List<WordSenseDto> senses) {
-        return senses.isEmpty() ? "" : senses.get(0).getPartOfSpeech();
+    private String resolvePrimaryPos(List<WordSenseDto> senses, PosCategory targetCategory) {
+        if (senses.isEmpty()) {
+            return "";
+        }
+        if (targetCategory != null && targetCategory != PosCategory.ALL) {
+            for (WordSenseDto s : senses) {
+                if (targetCategory.matches(s.getPartOfSpeech())) {
+                    return s.getPartOfSpeech();
+                }
+            }
+        }
+        return senses.get(0).getPartOfSpeech();
     }
 
     private String derivePitchAccent(String pos) {
@@ -507,19 +523,8 @@ public class DictionaryServiceImpl implements DictionaryService {
         return null;
     }
 
-    private String parsePosPattern(String type) {
-        if (type == null || type.equalsIgnoreCase("all")) {
-            return null;
-        }
-        if (type.equalsIgnoreCase("noun")) {
-            return "n";
-        }
-        if (type.equalsIgnoreCase("verb")) {
-            return "v";
-        }
-        if (type.equalsIgnoreCase("adj")) {
-            return "adj";
-        }
-        return null;
+    private String parsePosCategory(String type) {
+        PosCategory category = PosCategory.fromCode(type);
+        return (category != PosCategory.ALL) ? category.name() : null;
     }
 }

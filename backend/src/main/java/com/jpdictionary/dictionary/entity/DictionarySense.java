@@ -45,6 +45,9 @@ public class DictionarySense {
     @Column(name = "part_of_speech", length = 50)
     private String partOfSpeech;
 
+    @Column(name = "pos_category", length = 50)
+    private String posCategory;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

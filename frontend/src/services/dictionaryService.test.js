@@ -9,6 +9,7 @@ describe('Frontend dictionaryService unit tests', () => {
     assert.ok(results.length > 0);
     assert.equal(results[0].kanji, '食べる');
     assert.equal(results[0].hiragana, 'たべる');
+    assert.equal(results[0].pitchAccent, '[2] 中高 (Nakadaka)');
     assert.equal(results[0].primaryMeaning, 'ăn, dùng bữa');
   });
 

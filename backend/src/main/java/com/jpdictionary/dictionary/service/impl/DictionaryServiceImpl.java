@@ -22,6 +22,7 @@ import com.jpdictionary.dictionary.repository.KanjiEntryRepository;
 import com.jpdictionary.dictionary.service.DictionaryService;
 import com.jpdictionary.dictionary.service.deinflect.JapaneseDeinflector;
 import com.jpdictionary.dictionary.service.external.KanjiExternalApiService;
+import com.jpdictionary.dictionary.service.util.PitchAccentFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -232,7 +233,7 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .hiragana(hiragana)
                 .romaji(romaji)
                 .hanViet(hanViet)
-                .pitchAccent(derivePitchAccent(pos))
+                .pitchAccent(PitchAccentFormatter.format(primaryReading))
                 .jlptLevel(jlptStr)
                 .partOfSpeech(pos)
                 .primaryMeaning(primaryMeaning)
@@ -336,10 +337,6 @@ public class DictionaryServiceImpl implements DictionaryService {
             }
         }
         return senses.get(0).getPartOfSpeech();
-    }
-
-    private String derivePitchAccent(String pos) {
-        return "[0] 平板 (Heiban)";
     }
 
     private List<ExampleSentenceDto> mapExamples(List<ExampleSentence> examples) {

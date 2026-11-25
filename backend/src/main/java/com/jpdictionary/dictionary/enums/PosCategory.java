@@ -1,18 +1,25 @@
 package com.jpdictionary.dictionary.enums;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
+@Slf4j
 public enum PosCategory {
     ALL("all", "Tất cả", List.of()),
     NOUN("noun", "Danh từ", List.of("n", "ctr", "pref")),
-    VERB("verb", "Động từ", List.of("v1", "v5", "vs", "vk", "vz", "aux-v")),
+    VERB("verb", "Động từ", List.of("v1", "v5*", "vs", "vk", "vz", "aux-v")),
     ADJECTIVE("adj", "Tính từ", List.of("adj-i", "adj-na", "adj-no", "adj-pn", "adj-t", "adj-f")),
     ADVERB("adverb", "Phó từ", List.of("adv", "adv-to")),
-    IDIOM("idiom", "Quán dụng ngữ", List.of("id", "exp"));
+    IDIOM("idiom", "Quán dụng ngữ", List.of("id", "exp")),
+    OTHER("other", "Khác", List.of());
 
     private final String code;
     private final String displayNameVi;
@@ -25,17 +32,27 @@ public enum PosCategory {
     }
 
     /**
+     * Whether this category is valid for persistence (ALL is filter-only).
+     */
+    public boolean isStorable() {
+        return this != ALL;
+    }
+
+    /**
      * Parse query parameter to PosCategory safely without case sensitivity.
      */
     public static PosCategory fromCode(String code) {
         if (code == null || code.trim().isEmpty()) {
             return ALL;
         }
-        String clean = code.trim().toLowerCase();
+        String clean = code.trim();
         return Arrays.stream(values())
                 .filter(c -> c.code.equalsIgnoreCase(clean) || c.name().equalsIgnoreCase(clean))
                 .findFirst()
-                .orElse(ALL);
+                .orElseGet(() -> {
+                    log.warn("Unknown PosCategory filter code '{}', falling back to ALL", clean);
+                    return ALL;
+                });
     }
 
     /**
@@ -46,43 +63,103 @@ public enum PosCategory {
             return true;
         }
         if (rawPos == null || rawPos.trim().isEmpty()) {
-            return false;
+            return this == OTHER;
         }
-        String lower = rawPos.trim().toLowerCase();
-
-        // 1. Direct match with Vietnamese display name
-        if (lower.contains(displayNameVi.toLowerCase())) {
-            return true;
-        }
-
-        // 2. Token match with standard JMdict prefixes before parentheses or space
-        for (String prefix : standardPrefixes) {
-            if (lower.startsWith(prefix) || lower.contains("," + prefix) || lower.contains(", " + prefix)) {
-                return true;
-            }
-        }
-
-        return false;
+        return inferCategorySet(rawPos).contains(this);
     }
 
     /**
-     * Infer the comma-separated PosCategories from a raw partOfSpeech string.
-     * E.g. "n, vs (Danh từ / Động từ suru)" -> "NOUN,VERB"
+     * Infer standardized PosCategory set from a raw partOfSpeech string.
+     * Falls back to OTHER when rawPos is blank or does not match known categories.
+     */
+    public static Set<PosCategory> inferCategorySet(String rawPos) {
+        if (rawPos == null || rawPos.trim().isEmpty()) {
+            return EnumSet.of(OTHER);
+        }
+        String lower = rawPos.trim().toLowerCase(Locale.ROOT);
+        List<String> tagTokens = extractTagTokens(lower);
+
+        Set<PosCategory> matched = collectByTagTokens(tagTokens);
+        if (matched.isEmpty()) {
+            matched = collectByDisplayName(lower);
+        }
+        return matched.isEmpty() ? EnumSet.of(OTHER) : matched;
+    }
+
+    /**
+     * Infer comma-separated PosCategories from a raw partOfSpeech string.
      */
     public static String inferCategories(String rawPos) {
-        if (rawPos == null || rawPos.trim().isEmpty()) {
-            return NOUN.name();
+        return inferCategorySet(rawPos).stream()
+                .map(PosCategory::name)
+                .collect(Collectors.joining(","));
+    }
+
+    private static Set<PosCategory> collectByTagTokens(List<String> tagTokens) {
+        Set<PosCategory> result = EnumSet.noneOf(PosCategory.class);
+        if (tagTokens.isEmpty()) {
+            return result;
         }
-        StringBuilder sb = new StringBuilder();
         for (PosCategory cat : values()) {
-            if (cat != ALL && cat.matches(rawPos)) {
-                if (!sb.isEmpty()) {
-                    sb.append(",");
-                }
-                sb.append(cat.name());
+            if (cat.isStorable() && cat.matchesAnyTagToken(tagTokens)) {
+                result.add(cat);
             }
         }
-        return sb.isEmpty() ? NOUN.name() : sb.toString();
+        return result;
+    }
+
+    private static Set<PosCategory> collectByDisplayName(String lowerRawPos) {
+        Set<PosCategory> result = EnumSet.noneOf(PosCategory.class);
+        for (PosCategory cat : values()) {
+            if (cat.isStorable() && cat != OTHER && cat.matchesDisplayName(lowerRawPos)) {
+                result.add(cat);
+            }
+        }
+        return result;
+    }
+
+    private boolean matchesAnyTagToken(List<String> tagTokens) {
+        for (String token : tagTokens) {
+            for (String prefix : standardPrefixes) {
+                if (matchesToken(token, prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesToken(String token, String prefix) {
+        if (prefix.endsWith("*")) {
+            String base = prefix.substring(0, prefix.length() - 1);
+            return token.startsWith(base);
+        }
+        return token.equals(prefix) || token.startsWith(prefix + "-");
+    }
+
+    private boolean matchesDisplayName(String lowerRawPos) {
+        return !displayNameVi.isEmpty()
+                && lowerRawPos.contains(displayNameVi.toLowerCase(Locale.ROOT));
+    }
+
+    private static List<String> extractTagTokens(String lowerRawPos) {
+        int cutIdx = lowerRawPos.length();
+        int parenIdx = lowerRawPos.indexOf('(');
+        int bracketIdx = lowerRawPos.indexOf('[');
+        if (parenIdx >= 0) {
+            cutIdx = Math.min(cutIdx, parenIdx);
+        }
+        if (bracketIdx >= 0) {
+            cutIdx = Math.min(cutIdx, bracketIdx);
+        }
+        String tagSection = lowerRawPos.substring(0, cutIdx).trim();
+        if (tagSection.isEmpty()) {
+            return List.of();
+        }
+        return Arrays.stream(tagSection.split(","))
+                .map(String::trim)
+                .filter(token -> !token.isEmpty())
+                .toList();
     }
 }
 

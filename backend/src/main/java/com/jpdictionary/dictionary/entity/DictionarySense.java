@@ -1,8 +1,13 @@
 package com.jpdictionary.dictionary.entity;
 
+import com.jpdictionary.dictionary.enums.PosCategory;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,15 +16,22 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "dictionary_senses")
@@ -45,8 +57,17 @@ public class DictionarySense {
     @Column(name = "part_of_speech", length = 50)
     private String partOfSpeech;
 
-    @Column(name = "pos_category", length = 50)
-    private String posCategory;
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "dictionary_sense_pos_categories",
+            joinColumns = @JoinColumn(name = "sense_id", nullable = false)
+    )
+    @Column(name = "pos_category", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @BatchSize(size = 50)
+    @Builder.Default
+    private Set<PosCategory> posCategories = new LinkedHashSet<>();
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -55,5 +76,29 @@ public class DictionarySense {
     @OrderBy("displayOrder ASC")
     @Builder.Default
     private List<SenseGloss> glosses = new ArrayList<>();
+
+    /**
+     * Update raw partOfSpeech and immediately re-derive normalized posCategories.
+     */
+    public void assignPartOfSpeech(String newPartOfSpeech) {
+        this.partOfSpeech = newPartOfSpeech;
+        this.posCategories = new LinkedHashSet<>(PosCategory.inferCategorySet(newPartOfSpeech));
+    }
+
+    /**
+     * Ensure posCategories is populated and contains only storable PosCategory values.
+     */
+    @PrePersist
+    @PreUpdate
+    public void normalizeAndValidatePosCategories() {
+        if (this.posCategories == null || this.posCategories.isEmpty()) {
+            this.posCategories = new LinkedHashSet<>(PosCategory.inferCategorySet(this.partOfSpeech));
+        }
+        for (PosCategory category : this.posCategories) {
+            if (category == null || !category.isStorable()) {
+                throw new IllegalArgumentException("Invalid storable PosCategory: " + category);
+            }
+        }
+    }
 }
 

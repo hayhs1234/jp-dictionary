@@ -15,6 +15,10 @@ import java.util.List;
 public class WordSenseDto {
     private Integer senseOrder;
     private String partOfSpeech;
+
+    @Builder.Default
+    private List<String> posCategories = new ArrayList<>();
+
     private String meaning;
     private String detailedMeaning;
 

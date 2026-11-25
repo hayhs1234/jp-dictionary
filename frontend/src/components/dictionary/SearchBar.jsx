@@ -72,6 +72,7 @@ export default function SearchBar({
     { id: 'adj', label: 'Tính từ' },
     { id: 'adverb', label: 'Phó từ' },
     { id: 'idiom', label: 'Quán dụng ngữ' },
+    { id: 'other', label: 'Khác' },
   ];
 
   const handleInputChange = (e) => {

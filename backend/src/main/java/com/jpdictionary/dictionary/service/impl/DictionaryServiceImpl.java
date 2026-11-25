@@ -54,7 +54,7 @@ public class DictionaryServiceImpl implements DictionaryService {
         String cleanQuery = (query != null) ? query.trim() : "";
         Byte jlptLevel = parseJlptLevel(jlpt);
         PosCategory category = PosCategory.fromCode(type);
-        String posCategoryParam = (category != PosCategory.ALL) ? category.name() : null;
+        PosCategory posCategoryParam = (category != PosCategory.ALL) ? category : null;
 
         if (cleanQuery.isEmpty() && jlptLevel == null && posCategoryParam == null) {
             return Collections.emptyList();
@@ -64,7 +64,7 @@ public class DictionaryServiceImpl implements DictionaryService {
         return mapEntriesToDtos(results, category);
     }
 
-    private List<DictionaryEntry> collectEntries(String query, Byte jlpt, String pos) {
+    private List<DictionaryEntry> collectEntries(String query, Byte jlpt, PosCategory pos) {
         List<DictionaryEntry> results = new ArrayList<>();
         if (!query.isEmpty()) {
             results.addAll(entryRepository.findExactMatches(query, jlpt, pos));
@@ -275,6 +275,12 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     private WordSenseDto mapSingleSense(DictionarySense sense, int defaultOrder) {
         String pos = sense.getPartOfSpeech() != null ? sense.getPartOfSpeech() : "";
+        List<String> posCategories = sense.getPosCategories() != null
+                ? sense.getPosCategories().stream()
+                        .filter(PosCategory::isStorable)
+                        .map(Enum::name)
+                        .toList()
+                : Collections.emptyList();
         List<String> viGlosses = extractGlossesByLanguage(sense, "vi");
         List<String> enGlosses = extractGlossesByLanguage(sense, "en");
 
@@ -285,6 +291,7 @@ public class DictionaryServiceImpl implements DictionaryService {
         return WordSenseDto.builder()
                 .senseOrder(order)
                 .partOfSpeech(pos)
+                .posCategories(posCategories)
                 .meaning(meaning)
                 .detailedMeaning(notes)
                 .glosses(viGlosses)
@@ -332,12 +339,20 @@ public class DictionaryServiceImpl implements DictionaryService {
         }
         if (targetCategory != null && targetCategory != PosCategory.ALL) {
             for (WordSenseDto s : senses) {
-                if (targetCategory.matches(s.getPartOfSpeech())) {
+                if (matchesSenseCategory(s, targetCategory)) {
                     return s.getPartOfSpeech();
                 }
             }
         }
         return senses.get(0).getPartOfSpeech();
+    }
+
+    private boolean matchesSenseCategory(WordSenseDto sense, PosCategory targetCategory) {
+        List<String> categories = sense.getPosCategories();
+        if (categories != null && !categories.isEmpty()) {
+            return categories.contains(targetCategory.name());
+        }
+        return targetCategory.matches(sense.getPartOfSpeech());
     }
 
     private List<ExampleSentenceDto> mapExamples(List<ExampleSentence> examples) {
@@ -525,10 +540,5 @@ public class DictionaryServiceImpl implements DictionaryService {
             return (byte) 1;
         }
         return null;
-    }
-
-    private String parsePosCategory(String type) {
-        PosCategory category = PosCategory.fromCode(type);
-        return (category != PosCategory.ALL) ? category.name() : null;
     }
 }

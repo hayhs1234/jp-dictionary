@@ -501,6 +501,50 @@ const FALLBACK_WORDS = [
   },
 ];
 
+const STANDARD_TYPE_CATEGORIES = {
+  noun: ['Danh từ', '[名]', 'NOUN'],
+  verb: ['Động từ', '[動]', 'VERB'],
+  adj: ['Tính từ', '[形]', 'ADJECTIVE'],
+  adverb: ['Phó từ', '[副]', 'ADVERB'],
+  idiom: ['Quán dụng ngữ', '[慣用]', 'IDIOM'],
+};
+
+function matchesPosTargets(posText = '', posCategories = [], targets = []) {
+  const upperCategories = Array.isArray(posCategories)
+    ? posCategories.map((c) => String(c).toUpperCase())
+    : [];
+  const rawText = String(posText || '');
+  const upperText = rawText.toUpperCase();
+  return targets.some(
+    (t) =>
+      upperCategories.includes(t.toUpperCase()) ||
+      rawText.includes(t) ||
+      upperText.includes(t.toUpperCase())
+  );
+}
+
+function matchesWordType(word, type) {
+  const cleanType = type.toLowerCase();
+  const senses = Array.isArray(word.senses) ? word.senses : [];
+  if (cleanType === 'other') {
+    const allMainTargets = Object.values(STANDARD_TYPE_CATEGORIES).flat();
+    const explicitOther =
+      matchesPosTargets(word.partOfSpeech, word.posCategories, ['Khác', 'OTHER']) ||
+      senses.some((s) => matchesPosTargets(s.partOfSpeech, s.posCategories, ['Khác', 'OTHER']));
+    if (explicitOther) return true;
+    const matchesAnyMain =
+      matchesPosTargets(word.partOfSpeech, word.posCategories, allMainTargets) ||
+      senses.some((s) => matchesPosTargets(s.partOfSpeech, s.posCategories, allMainTargets));
+    return !matchesAnyMain;
+  }
+  const targets = STANDARD_TYPE_CATEGORIES[cleanType] || [];
+  if (targets.length === 0) return true;
+  return (
+    matchesPosTargets(word.partOfSpeech, word.posCategories, targets) ||
+    senses.some((s) => matchesPosTargets(s.partOfSpeech, s.posCategories, targets))
+  );
+}
+
 // Fallback search algorithm
 function localSearch(params = {}) {
   const query = (params.q || '').trim().toLowerCase();
@@ -525,20 +569,7 @@ function localSearch(params = {}) {
   }
 
   if (type && type !== 'all') {
-    const typeCategories = {
-      noun: ['Danh từ', '[名]', 'NOUN'],
-      verb: ['Động từ', '[動]', 'VERB'],
-      adj: ['Tính từ', '[形]', 'ADJECTIVE'],
-      adverb: ['Phó từ', '[副]', 'ADVERB'],
-      idiom: ['Quán dụng ngữ', '[慣用]', 'IDIOM'],
-    };
-    const targets = typeCategories[type.toLowerCase()] || [];
-    if (targets.length > 0) {
-      results = results.filter((w) => {
-        const pos = w.partOfSpeech || '';
-        return targets.some((t) => pos.includes(t) || pos.toUpperCase().includes(t));
-      });
-    }
+    results = results.filter((w) => matchesWordType(w, type));
   }
 
   return results;

@@ -26,8 +26,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -244,7 +247,7 @@ class DictionaryServiceTest {
     @DisplayName("Should pass NOUN category to repository when filtering by noun")
     void testSearchFilterByNoun() {
         DictionaryEntry nounEntry = createMockWord(5L, "本", "ほん", "hon", "n (Danh từ)", "sách", (byte) 5);
-        when(entryRepository.findExactMatches("本", null, "NOUN")).thenReturn(List.of(nounEntry));
+        when(entryRepository.findExactMatches("本", null, PosCategory.NOUN)).thenReturn(List.of(nounEntry));
 
         List<WordDetailDto> results = dictionaryService.search("本", null, "noun");
         assertNotNull(results);
@@ -257,7 +260,7 @@ class DictionaryServiceTest {
     @DisplayName("Should pass VERB category to repository when filtering by verb")
     void testSearchFilterByVerb() {
         DictionaryEntry verbEntry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
-        when(entryRepository.findExactMatches("食べる", null, "VERB")).thenReturn(List.of(verbEntry));
+        when(entryRepository.findExactMatches("食べる", null, PosCategory.VERB)).thenReturn(List.of(verbEntry));
 
         List<WordDetailDto> results = dictionaryService.search("食べる", null, "verb");
         assertNotNull(results);
@@ -268,8 +271,9 @@ class DictionaryServiceTest {
     @Test
     @DisplayName("Should pass IDIOM category to repository when filtering by idiom")
     void testSearchFilterByIdiom() {
-        DictionaryEntry idiomEntry = createMockWord(99L, "一期一会", "いちごいちえ", "ichigoichie", "id (Quán dụng ngữ)", "nhất kỳ nhất hội", (byte) 1);
-        when(entryRepository.findExactMatches("一期一会", null, "IDIOM")).thenReturn(List.of(idiomEntry));
+        DictionaryEntry idiomEntry = createMockWord(
+                99L, "一期一会", "いちごいちえ", "ichigoichie", "id (Quán dụng ngữ)", "nhất kỳ nhất hội", (byte) 1);
+        when(entryRepository.findExactMatches("一期一会", null, PosCategory.IDIOM)).thenReturn(List.of(idiomEntry));
 
         List<WordDetailDto> results = dictionaryService.search("一期一会", null, "idiom");
         assertNotNull(results);
@@ -278,27 +282,62 @@ class DictionaryServiceTest {
     }
 
     @Test
-    @DisplayName("Should prioritize matching sense POS when filtering multi-sense word")
+    @DisplayName("Should pass ADVERB and OTHER categories distinctly without VERB collision")
+    void testSearchFilterByAdverbAndOther() {
+        DictionaryEntry advEntry = createMockWord(
+                101L, "とても", "とても", "totemo", "adv (Phó từ)", "rất", (byte) 5);
+        when(entryRepository.findExactMatches("とても", null, PosCategory.ADVERB)).thenReturn(List.of(advEntry));
+
+        List<WordDetailDto> advResults = dictionaryService.search("とても", null, "adverb");
+        assertEquals(1, advResults.size());
+        assertEquals(List.of("ADVERB"), advResults.get(0).getSenses().get(0).getPosCategories());
+
+        DictionaryEntry prtEntry = createMockWord(
+                102L, "これ", "これ", "kore", "pn (Đại từ)", "cái này", (byte) 5);
+        when(entryRepository.findExactMatches("これ", null, PosCategory.OTHER)).thenReturn(List.of(prtEntry));
+
+        List<WordDetailDto> otherResults = dictionaryService.search("これ", null, "other");
+        assertEquals(1, otherResults.size());
+        assertEquals(List.of("OTHER"), otherResults.get(0).getSenses().get(0).getPosCategories());
+        verify(entryRepository).findExactMatches("とても", null, PosCategory.ADVERB);
+        verify(entryRepository).findExactMatches("これ", null, PosCategory.OTHER);
+    }
+
+    @Test
+    @DisplayName("Should prioritize matching sense POS using stored posCategories on polysemy filter")
     void testSearchFilterPolysemyPrefersMatchingSense() {
         DictionaryEntry entry = createMockWord(18L, "直す", "なおす", "naosu", "n (Danh từ)", "việc sửa", (byte) 4);
         DictionarySense sense2 = DictionarySense.builder()
                 .id(100L)
                 .entry(entry)
                 .senseOrder(2)
-                .partOfSpeech("v5s (Động từ nhóm 1)")
-                .posCategory("VERB")
+                .partOfSpeech("Nhãn tùy chỉnh")
+                .posCategories(Set.of(PosCategory.VERB))
                 .notes("sửa chữa")
                 .build();
         sense2.getGlosses().add(SenseGloss.builder().id(100L).sense(sense2).languageCode("vi").meaning("sửa chữa").build());
         entry.getSenses().add(sense2);
 
-        when(entryRepository.findExactMatches("直す", null, "VERB")).thenReturn(List.of(entry));
+        when(entryRepository.findExactMatches("直す", null, PosCategory.VERB)).thenReturn(List.of(entry));
 
         List<WordDetailDto> results = dictionaryService.search("直す", null, "verb");
         assertNotNull(results);
         assertEquals(1, results.size());
-        // Primary POS of DTO should be the matching sense (Verb), not the first sense (Noun)
-        assertEquals("v5s (Động từ nhóm 1)", results.get(0).getPartOfSpeech());
+        assertEquals("Nhãn tùy chỉnh", results.get(0).getPartOfSpeech());
+    }
+
+    @Test
+    @DisplayName("Should map normalized posCategories onto WordSenseDto for multi-category senses")
+    void testMapSingleSensePopulatesPosCategories() {
+        DictionaryEntry entry = createMockWord(
+                21L, "成功", "せいこう", "seikou", "n, vs (Danh từ / Động từ suru)", "thành công", (byte) 3);
+        when(entryRepository.findExactMatches("成功", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("成功", null, null);
+        assertEquals(1, results.size());
+        List<String> categories = results.get(0).getSenses().get(0).getPosCategories();
+        assertTrue(categories.contains("NOUN"));
+        assertTrue(categories.contains("VERB"));
     }
 
     @Test
@@ -405,7 +444,7 @@ class DictionaryServiceTest {
                 .id(id)
                 .entry(entry)
                 .partOfSpeech(pos)
-                .posCategory(PosCategory.inferCategories(pos))
+                .posCategories(new LinkedHashSet<>(PosCategory.inferCategorySet(pos)))
                 .build();
 
         SenseGloss gloss = SenseGloss.builder()

@@ -74,6 +74,14 @@ describe('Frontend dictionaryService unit tests', () => {
     assert.ok(Array.isArray(adjs));
     assert.ok(adjs.length > 0);
     assert.ok(adjs.every((w) => w.partOfSpeech.includes('Tính từ') || w.partOfSpeech.includes('形')));
+
+    const adverbs = await dictionaryService.search({ q: '', type: 'adverb' });
+    assert.ok(Array.isArray(adverbs));
+    assert.ok(!adverbs.some((w) => w.kanji === '食べる'));
+
+    const others = await dictionaryService.search({ q: '', type: 'other' });
+    assert.ok(Array.isArray(others));
+    assert.equal(others.length, 0);
   });
 });
 

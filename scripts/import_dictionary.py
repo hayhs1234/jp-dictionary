@@ -2,11 +2,13 @@
 Japanese Dictionary Importer & Seeder Script
 -------------------------------------------
 Nạp danh sách từ vựng tiếng Nhật JLPT (N5 -> N1) kèm chữ Hán, Hiragana, Romaji,
-nghĩa tiếng Việt (vi) và tiếng Anh (en) vào MySQL Database hoặc sinh file SQL Migration.
+nghĩa tiếng Việt (vi) và tiếng Anh (en) vào MySQL Database hoặc sinh file SQL (schema V9+).
+
+Lưu ý: Không dùng script này để ghi đè V2__seed_dictionary.sql (V2 chạy trước V7/V9 trong Flyway).
 
 Cách dùng:
-  1. Sinh file SQL cho Flyway (Khuyên dùng - không cần cài thêm thư viện DB):
-     python scripts/import_dictionary.py --output backend/src/main/resources/db/migration/V2__seed_dictionary.sql
+  1. Sinh file SQL tương thích schema V9+ (có pitch_accent & dictionary_sense_pos_categories):
+     python scripts/import_dictionary.py --output seed_dictionary_v9.sql
 
   2. Nạp trực tiếp vào MySQL (cần pip install pymysql):
      python scripts/import_dictionary.py --direct --host localhost --port 3306 --user root --password root --db japanese_learning_db
@@ -220,6 +222,68 @@ CORE_VOCABULARY = [
     }
 ]
 
+VALID_POS_CATEGORIES = ("NOUN", "VERB", "ADJECTIVE", "ADVERB", "IDIOM", "OTHER")
+
+POS_CATEGORY_RULES = [
+    ("NOUN", ("n", "ctr", "pref"), "danh từ"),
+    ("VERB", ("v1", "v5*", "vs", "vk", "vz", "aux-v"), "động từ"),
+    ("ADJECTIVE", ("adj-i", "adj-na", "adj-no", "adj-pn", "adj-t", "adj-f"), "tính từ"),
+    ("ADVERB", ("adv", "adv-to"), "phó từ"),
+    ("IDIOM", ("id", "exp"), "quán dụng ngữ"),
+]
+
+def _extract_tag_tokens(raw_pos: str) -> List[str]:
+    lower = raw_pos.strip().lower()
+    cut_indices = [idx for idx in (lower.find("("), lower.find("[")) if idx >= 0]
+    cut_idx = min(cut_indices) if cut_indices else len(lower)
+    tag_section = lower[:cut_idx].strip()
+    if not tag_section:
+        return []
+    return [tok.strip() for tok in tag_section.split(",") if tok.strip()]
+
+def _matches_prefix(token: str, prefix: str) -> bool:
+    if prefix.endswith("*"):
+        return token.startswith(prefix[:-1])
+    return token == prefix or token.startswith(prefix + "-")
+
+def infer_pos_categories(raw_pos: str) -> List[str]:
+    """Suy xuất danh sách PosCategory chuẩn hóa từ part_of_speech (fallback về ['OTHER'])."""
+    if not raw_pos or not str(raw_pos).strip():
+        return ["OTHER"]
+
+    lower = str(raw_pos).strip().lower()
+    tokens = _extract_tag_tokens(lower)
+
+    matched = []
+    for cat, prefixes, _ in POS_CATEGORY_RULES:
+        if any(_matches_prefix(tok, p) for tok in tokens for p in prefixes):
+            matched.append(cat)
+
+    if not matched:
+        for cat, _, vi_label in POS_CATEGORY_RULES:
+            if vi_label in lower:
+                matched.append(cat)
+
+    return matched if matched else ["OTHER"]
+
+def resolve_pos_categories(item: Dict[str, Any]) -> List[str]:
+    """Lấy & kiểm tra tính hợp lệ của pos_categories (nếu khai báo tường minh) hoặc tự suy xuất."""
+    explicit = item.get("pos_categories")
+    if explicit is not None:
+        if not isinstance(explicit, list) or not explicit:
+            raise ValueError(f"pos_categories không hợp lệ cho mục {item.get('source_id')}: {explicit}")
+        normalized = []
+        for cat in explicit:
+            upper_cat = str(cat).strip().upper()
+            if upper_cat not in VALID_POS_CATEGORIES:
+                raise ValueError(
+                    f"PosCategory '{cat}' không thuộc {VALID_POS_CATEGORIES} (source_id={item.get('source_id')})"
+                )
+            if upper_cat not in normalized:
+                normalized.append(upper_cat)
+        return normalized
+    return infer_pos_categories(item.get("pos", ""))
+
 def escape_sql(val: str) -> str:
     """Thoát ký tự đơn nháy an toàn cho SQL"""
     if val is None:
@@ -227,13 +291,14 @@ def escape_sql(val: str) -> str:
     return "'" + str(val).replace("'", "''").replace("\\", "\\\\") + "'"
 
 def generate_sql(vocab_list: List[Dict[str, Any]]) -> str:
-    """Sinh toàn bộ câu lệnh SQL chèn vào 7 bảng của database"""
+    """Sinh toàn bộ câu lệnh SQL chèn vào các bảng của database (schema V9+)"""
     sql_lines = [
         "-- ========================================================",
-        "-- Auto-generated JLPT Vocabulary Seed Data (N5 - N1)",
+        "-- Auto-generated JLPT Vocabulary Seed Data (N5 - N1, Schema V9+)",
         "-- Character Set: UTF8MB4",
         "-- Tables: dictionary_entries, dictionary_forms, dictionary_readings,",
-        "--         dictionary_senses, sense_glosses, example_sentences, example_translations",
+        "--         dictionary_senses, sense_glosses, dictionary_sense_pos_categories,",
+        "--         example_sentences, example_translations",
         "-- ========================================================\n",
         "SET NAMES utf8mb4;\n"
     ]
@@ -247,6 +312,7 @@ def generate_sql(vocab_list: List[Dict[str, Any]]) -> str:
     readings_sql = []
     senses_sql = []
     glosses_sql = []
+    sense_categories_sql = []
     examples_sql = []
     translations_sql = []
 
@@ -274,11 +340,14 @@ def generate_sql(vocab_list: List[Dict[str, Any]]) -> str:
             is_prim = "TRUE" if r.get("primary", False) else "FALSE"
             readings_sql.append(f"({e_id}, {reading}, {romaji}, {pitch}, {is_prim}, {order})")
 
-        # 4. dictionary_senses & sense_glosses
+        # 4. dictionary_senses, sense_glosses & dictionary_sense_pos_categories
         pos = escape_sql(item.get("pos"))
         s_id = sense_id
         sense_id += 1
         senses_sql.append(f"({s_id}, {e_id}, 1, {pos}, NULL)")
+
+        for cat in resolve_pos_categories(item):
+            sense_categories_sql.append(f"({s_id}, {escape_sql(cat)})")
 
         # meanings (vi & en)
         gloss_order = 1
@@ -313,23 +382,26 @@ def generate_sql(vocab_list: List[Dict[str, Any]]) -> str:
     sql_lines.append("-- 4. Insert Senses")
     sql_lines.append("INSERT INTO dictionary_senses (id, entry_id, sense_order, part_of_speech, notes) VALUES\n" + ",\n".join(senses_sql) + ";\n")
 
-    sql_lines.append("-- 5. Insert Glosses")
+    sql_lines.append("-- 5. Insert Sense POS Categories (1NF)")
+    sql_lines.append("INSERT INTO dictionary_sense_pos_categories (sense_id, pos_category) VALUES\n" + ",\n".join(sense_categories_sql) + ";\n")
+
+    sql_lines.append("-- 6. Insert Glosses")
     sql_lines.append("INSERT INTO sense_glosses (sense_id, language_code, meaning, display_order) VALUES\n" + ",\n".join(glosses_sql) + ";\n")
 
     if examples_sql:
-        sql_lines.append("-- 6. Insert Example Sentences")
+        sql_lines.append("-- 7. Insert Example Sentences")
         sql_lines.append("INSERT INTO example_sentences (id, entry_id, japanese_text, reading, source_code) VALUES\n" + ",\n".join(examples_sql) + ";\n")
 
     if translations_sql:
-        sql_lines.append("-- 7. Insert Example Translations")
+        sql_lines.append("-- 8. Insert Example Translations")
         sql_lines.append("INSERT INTO example_translations (example_sentence_id, language_code, translated_text) VALUES\n" + ",\n".join(translations_sql) + ";\n")
 
     return "\n".join(sql_lines)
 
 def main():
-    parser = argparse.ArgumentParser(description="Japanese Dictionary Importer & Seeder")
-    parser.add_argument("--output", "-o", default="backend/src/main/resources/db/migration/V2__seed_dictionary.sql",
-                        help="Đường dẫn file .sql đầu ra (mặc định cho Flyway)")
+    parser = argparse.ArgumentParser(description="Japanese Dictionary Importer & Seeder (Schema V9+)")
+    parser.add_argument("--output", "-o", default="seed_dictionary_v9.sql",
+                        help="Đường dẫn file .sql đầu ra (tương thích schema V9+)")
     parser.add_argument("--file", "-f", help="Đường dẫn tới file JSON từ vựng tùy chỉnh (nếu có)")
     parser.add_argument("--direct", action="store_true", help="Nạp trực tiếp vào MySQL qua kết nối DB")
     parser.add_argument("--host", default="localhost", help="MySQL Host")
@@ -357,6 +429,7 @@ def main():
 
     # 2. Nếu chọn direct MySQL
     if args.direct:
+        conn = None
         try:
             import pymysql
             print(f"[+] Đang kết nối tới MySQL {args.host}:{args.port}/{args.db} ...")
@@ -366,21 +439,25 @@ def main():
                 user=args.user,
                 password=args.password,
                 database=args.db,
-                charset='utf8mb4'
+                charset='utf8mb4',
+                autocommit=False
             )
             with conn.cursor() as cursor:
-                # Thực thi từng khối lệnh SQL
                 statements = [stmt.strip() for stmt in sql_content.split(";") if stmt.strip()]
                 for stmt in statements:
                     cursor.execute(stmt)
                 conn.commit()
-            conn.close()
             print("[✓] Đã nạp thành công trực tiếp vào MySQL!")
         except ImportError:
             print("[!] Cần cài đặt pymysql để nạp trực tiếp: pip install pymysql")
-            print("    Hoặc bạn chỉ cần dùng file SQL vừa sinh nạp vào qua Flyway / MySQL Workbench.")
+            print("    Hoặc dùng file SQL vừa sinh nạp vào MySQL Workbench.")
         except Exception as e:
-            print(f"[X] Lỗi khi kết nối MySQL: {e}")
+            if conn is not None:
+                conn.rollback()
+            print(f"[X] Lỗi khi nạp MySQL (đã rollback): {e}")
+        finally:
+            if conn is not None:
+                conn.close()
 
 if __name__ == "__main__":
     main()

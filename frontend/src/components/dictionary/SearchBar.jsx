@@ -70,6 +70,7 @@ export default function SearchBar({
     { id: 'noun', label: 'Danh từ' },
     { id: 'verb', label: 'Động từ' },
     { id: 'adj', label: 'Tính từ' },
+    { id: 'adverb', label: 'Phó từ' },
     { id: 'idiom', label: 'Quán dụng ngữ' },
   ];
 
@@ -365,7 +366,7 @@ export default function SearchBar({
           </div>
 
           {/* Lexical Type Filters */}
-          <div className="flex items-center space-x-1">
+          <div className="flex flex-wrap items-center gap-1">
             <span className="text-on-surface-variant mr-1">Loại từ:</span>
             {wordTypes.map((item) => (
               <button

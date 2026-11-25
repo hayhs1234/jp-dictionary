@@ -66,5 +66,10 @@ public class DictionaryEntry {
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ExampleSentence> examples = new ArrayList<>();
+
+    @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC")
+    @Builder.Default
+    private List<DictionarySynonym> synonyms = new ArrayList<>();
 }
 

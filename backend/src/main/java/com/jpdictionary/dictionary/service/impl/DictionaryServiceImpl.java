@@ -13,6 +13,7 @@ import com.jpdictionary.dictionary.enums.PosCategory;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
+import com.jpdictionary.dictionary.entity.DictionarySynonym;
 import com.jpdictionary.dictionary.entity.ExampleSentence;
 import com.jpdictionary.dictionary.entity.ExampleTranslation;
 import com.jpdictionary.dictionary.entity.KanjiEntry;
@@ -242,7 +243,7 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .furiganaSegments(segments)
                 .kanjiBreakdown(kanjiList)
                 .examples(exampleDtos)
-                .synonyms(buildDefaultSynonyms(kanji))
+                .synonyms(mapSynonyms(entry.getSynonyms()))
                 .build();
     }
 
@@ -488,14 +489,20 @@ public class DictionaryServiceImpl implements DictionaryService {
         return suffixLen;
     }
 
-    private List<SynonymDto> buildDefaultSynonyms(String kanji) {
-        if ("木漏れ日".equals(kanji)) {
-            return List.of(
-                    new SynonymDto("日光 (にっこう)", "にっこう", "Ánh sáng mặt trời (Đồng nghĩa rộng)", "synonym"),
-                    new SynonymDto("陽光 (ようこう)", "ようこう", "Dương quang, nắng ấm", "synonym"),
-                    new SynonymDto("〜ながら", "", "Vừa... vừa - Ngữ pháp N4 thường dùng kèm", "grammar"));
+    private List<SynonymDto> mapSynonyms(List<DictionarySynonym> synonyms) {
+        if (synonyms == null || synonyms.isEmpty()) {
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
+        List<SynonymDto> dtos = new ArrayList<>();
+        for (DictionarySynonym syn : synonyms) {
+            dtos.add(SynonymDto.builder()
+                    .word(syn.getWord())
+                    .reading(syn.getReading() != null ? syn.getReading() : "")
+                    .meaning(syn.getMeaning())
+                    .type(syn.getRelationType() != null ? syn.getRelationType() : "synonym")
+                    .build());
+        }
+        return dtos;
     }
 
     private Byte parseJlptLevel(String jlpt) {

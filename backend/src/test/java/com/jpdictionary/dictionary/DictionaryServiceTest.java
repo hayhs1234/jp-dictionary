@@ -2,11 +2,13 @@ package com.jpdictionary.dictionary;
 
 import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
 import com.jpdictionary.dictionary.dto.SuggestionDto;
+import com.jpdictionary.dictionary.dto.SynonymDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
+import com.jpdictionary.dictionary.entity.DictionarySynonym;
 import com.jpdictionary.dictionary.entity.KanjiEntry;
 import com.jpdictionary.dictionary.entity.SenseGloss;
 import com.jpdictionary.dictionary.enums.PosCategory;
@@ -320,6 +322,59 @@ class DictionaryServiceTest {
         List<WordDetailDto> results = dictionaryService.search("食べる", null, null);
         assertEquals(1, results.size());
         assertEquals("[2] 中高 (Nakadaka)", results.get(0).getPitchAccent());
+    }
+
+    @Test
+    @DisplayName("Should map synonyms and grammar patterns from DB entry for any word")
+    void testSearchMapsSynonymsFromDatabase() {
+        DictionaryEntry entry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
+        entry.getSynonyms().add(DictionarySynonym.builder()
+                .id(1L)
+                .entry(entry)
+                .word("食事する (しょくじする)")
+                .reading("しょくじする")
+                .meaning("Dùng bữa, ăn uống")
+                .relationType("synonym")
+                .displayOrder(1)
+                .build());
+        entry.getSynonyms().add(DictionarySynonym.builder()
+                .id(2L)
+                .entry(entry)
+                .word("〜てみる")
+                .reading(null)
+                .meaning("Thử làm gì đó")
+                .relationType("grammar")
+                .displayOrder(2)
+                .build());
+
+        when(entryRepository.findExactMatches("食べる", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("食べる", null, null);
+        assertEquals(1, results.size());
+        List<SynonymDto> synonyms = results.get(0).getSynonyms();
+        assertNotNull(synonyms);
+        assertEquals(2, synonyms.size());
+        assertEquals("食事する (しょくじする)", synonyms.get(0).getWord());
+        assertEquals("しょくじする", synonyms.get(0).getReading());
+        assertEquals("Dùng bữa, ăn uống", synonyms.get(0).getMeaning());
+        assertEquals("synonym", synonyms.get(0).getType());
+
+        assertEquals("〜てみる", synonyms.get(1).getWord());
+        assertEquals("", synonyms.get(1).getReading());
+        assertEquals("grammar", synonyms.get(1).getType());
+    }
+
+    @Test
+    @DisplayName("Should return empty synonyms list when DB entry has no synonyms")
+    void testSearchReturnsEmptySynonymsWhenMissing() {
+        DictionaryEntry entry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
+        entry.setSynonyms(null);
+        when(entryRepository.findExactMatches("食べる", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("食べる", null, null);
+        assertEquals(1, results.size());
+        assertNotNull(results.get(0).getSynonyms());
+        assertTrue(results.get(0).getSynonyms().isEmpty());
     }
 
     private DictionaryEntry createMockWord(Long id, String kanji, String hiragana, String romaji, String pos, String meaning, Byte jlpt) {

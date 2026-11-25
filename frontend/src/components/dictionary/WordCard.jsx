@@ -67,7 +67,7 @@ export default function WordCard({ word, isLoading = false }) {
     hiragana = '',
     romaji = '',
     hanViet = '',
-    pitchAccent = '[0] 平板 (Heiban)',
+    pitchAccent = null,
     jlptLevel = 'N5',
     partOfSpeech = 'Từ vựng',
     primaryMeaning = '',
@@ -111,7 +111,7 @@ export default function WordCard({ word, isLoading = false }) {
               type="button"
               onClick={() => handleSpeak(kanji || hiragana)}
               className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-primary-fixed border border-outline-variant text-primary flex items-center justify-center transition-transform active:scale-95 shadow-xs"
-              title="Phát âm chuẩn Tokyo (Heiban)"
+              title="Phát âm chuẩn Tokyo"
             >
               <Icon name="volume_up" className="text-2xl" />
             </button>

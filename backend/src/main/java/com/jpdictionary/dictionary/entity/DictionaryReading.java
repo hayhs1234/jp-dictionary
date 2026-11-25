@@ -38,6 +38,9 @@ public class DictionaryReading {
     @Column(name = "romaji", length = 255)
     private String romaji;
 
+    @Column(name = "pitch_accent", length = 50)
+    private String pitchAccent;
+
     @Column(name = "is_primary", nullable = false)
     @Builder.Default
     private Boolean isPrimary = false;

@@ -30,6 +30,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -296,6 +297,29 @@ class DictionaryServiceTest {
         assertEquals(1, results.size());
         // Primary POS of DTO should be the matching sense (Verb), not the first sense (Noun)
         assertEquals("v5s (Động từ nhóm 1)", results.get(0).getPartOfSpeech());
+    }
+
+    @Test
+    @DisplayName("Should return null pitchAccent when reading has no pitch accent data")
+    void testSearchReturnsNullPitchAccentWhenMissing() {
+        DictionaryEntry entry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
+        when(entryRepository.findExactMatches("食べる", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("食べる", null, null);
+        assertEquals(1, results.size());
+        assertNull(results.get(0).getPitchAccent());
+    }
+
+    @Test
+    @DisplayName("Should format pitchAccent from primary reading when present in DB")
+    void testSearchFormatsPitchAccentFromReading() {
+        DictionaryEntry entry = createMockWord(1L, "食べる", "たべる", "taberu", "v1 (Động từ nhóm 2)", "ăn", (byte) 5);
+        entry.getReadings().get(0).setPitchAccent("2");
+        when(entryRepository.findExactMatches("食べる", null, null)).thenReturn(List.of(entry));
+
+        List<WordDetailDto> results = dictionaryService.search("食べる", null, null);
+        assertEquals(1, results.size());
+        assertEquals("[2] 中高 (Nakadaka)", results.get(0).getPitchAccent());
     }
 
     private DictionaryEntry createMockWord(Long id, String kanji, String hiragana, String romaji, String pos, String meaning, Byte jlpt) {

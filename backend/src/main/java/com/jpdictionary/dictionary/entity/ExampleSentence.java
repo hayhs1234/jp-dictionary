@@ -16,6 +16,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +48,7 @@ public class ExampleSentence {
     private String sourceCode;
 
     @OneToMany(mappedBy = "exampleSentence", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ExampleTranslation> translations = new ArrayList<>();
 }

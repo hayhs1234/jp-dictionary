@@ -74,6 +74,7 @@ public class DictionarySense {
 
     @OneToMany(mappedBy = "sense", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<SenseGloss> glosses = new ArrayList<>();
 

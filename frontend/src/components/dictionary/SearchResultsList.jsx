@@ -81,9 +81,9 @@ export default function SearchResultsList({
                   <span className="text-body-sm text-on-surface-variant truncate">
                     {item.primaryMeaning || 'Chưa có giải nghĩa'}
                   </span>
-                  {item.senses && item.senses.length > 1 && (
+                  {(item.senseCount ?? item.senses?.length ?? 0) > 1 && (
                     <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded shrink-0">
-                      +{item.senses.length - 1} nghĩa
+                      +{(item.senseCount ?? item.senses?.length ?? 0) - 1} nghĩa
                     </span>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 package com.jpdictionary.dictionary.service.impl;
 
 import com.jpdictionary.common.exception.ResourceNotFoundException;
+import com.jpdictionary.config.CacheConfig;
 import com.jpdictionary.dictionary.dto.ExampleSentenceDto;
 import com.jpdictionary.dictionary.dto.FuriganaSegmentDto;
 import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
@@ -8,8 +9,8 @@ import com.jpdictionary.dictionary.dto.SuggestionDto;
 import com.jpdictionary.dictionary.dto.SynonymDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
 import com.jpdictionary.dictionary.dto.WordSenseDto;
+import com.jpdictionary.dictionary.dto.WordSummaryDto;
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
-import com.jpdictionary.dictionary.enums.PosCategory;
 import com.jpdictionary.dictionary.entity.DictionaryForm;
 import com.jpdictionary.dictionary.entity.DictionaryReading;
 import com.jpdictionary.dictionary.entity.DictionarySense;
@@ -18,22 +19,25 @@ import com.jpdictionary.dictionary.entity.ExampleSentence;
 import com.jpdictionary.dictionary.entity.ExampleTranslation;
 import com.jpdictionary.dictionary.entity.KanjiEntry;
 import com.jpdictionary.dictionary.entity.SenseGloss;
+import com.jpdictionary.dictionary.enums.PosCategory;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.KanjiEntryRepository;
 import com.jpdictionary.dictionary.service.DictionaryService;
-import com.jpdictionary.dictionary.service.deinflect.JapaneseDeinflector;
 import com.jpdictionary.dictionary.service.external.KanjiExternalApiService;
+import com.jpdictionary.dictionary.service.search.DictionarySearchBackend;
 import com.jpdictionary.dictionary.service.util.PitchAccentFormatter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,124 +47,154 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DictionaryServiceImpl implements DictionaryService {
 
+    private static final int DEFAULT_SEARCH_LIMIT = 20;
+    private static final int DEFAULT_SUGGESTION_LIMIT = 8;
+    private static final Map<String, Byte> JLPT_LEVEL_MAP = Map.of(
+            "N5", (byte) 5,
+            "N4", (byte) 4,
+            "N3", (byte) 3,
+            "N2", (byte) 2,
+            "N1", (byte) 1
+    );
+
     private final DictionaryEntryRepository entryRepository;
+    private final DictionarySearchBackend searchBackend;
     private final KanjiEntryRepository kanjiEntryRepository;
-    private final JapaneseDeinflector deinflector;
     private final KanjiExternalApiService kanjiExternalApiService;
 
     @Override
     @Transactional(readOnly = true)
-    public List<WordDetailDto> search(String query, String jlpt, String type) {
+    @Cacheable(
+            cacheNames = CacheConfig.WORD_SEARCH,
+            key = "(#query == null ? '' : #query.trim().toLowerCase()) + '|' "
+                    + "+ (#jlpt == null ? 'all' : #jlpt.trim().toUpperCase()) + '|' "
+                    + "+ (#type == null ? 'all' : #type.trim().toLowerCase())",
+            condition = "(#query != null && !#query.trim().isEmpty()) "
+                    + "|| (#jlpt != null && !#jlpt.trim().isEmpty() && !#jlpt.equalsIgnoreCase('all')) "
+                    + "|| (#type != null && !#type.trim().isEmpty() && !#type.equalsIgnoreCase('all'))"
+    )
+    public List<WordSummaryDto> search(String query, String jlpt, String type) {
         String cleanQuery = (query != null) ? query.trim() : "";
         Byte jlptLevel = parseJlptLevel(jlpt);
         PosCategory category = PosCategory.fromCode(type);
-        PosCategory posCategoryParam = (category != PosCategory.ALL) ? category : null;
 
-        if (cleanQuery.isEmpty() && jlptLevel == null && posCategoryParam == null) {
+        if (cleanQuery.isEmpty() && jlptLevel == null && category == PosCategory.ALL) {
             return Collections.emptyList();
         }
 
-        List<DictionaryEntry> results = collectEntries(cleanQuery, jlptLevel, posCategoryParam);
-        return mapEntriesToDtos(results, category);
-    }
-
-    private List<DictionaryEntry> collectEntries(String query, Byte jlpt, PosCategory pos) {
-        List<DictionaryEntry> results = new ArrayList<>();
-        if (!query.isEmpty()) {
-            results.addAll(entryRepository.findExactMatches(query, jlpt, pos));
+        List<Long> orderedIds = searchBackend.searchEntryIds(cleanQuery, jlptLevel, category, DEFAULT_SEARCH_LIMIT);
+        if (orderedIds == null || orderedIds.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        // De-inflection: detect conjugated forms (e.g., 食べた -> 食べる, いかない -> いく)
-        if (!query.isEmpty() && deinflector != null) {
-            List<String> deinflectedRoots = deinflector.deinflect(query);
-            for (String root : deinflectedRoots) {
-                List<DictionaryEntry> rootMatches = entryRepository.findExactMatches(root, jlpt, pos);
-                for (DictionaryEntry entry : rootMatches) {
-                    if (results.stream().noneMatch(e -> e.getId().equals(entry.getId()))) {
-                        results.add(entry);
-                    }
-                }
-            }
-        }
-
-        if (results.size() < 20) {
-            List<DictionaryEntry> fuzzy = entryRepository.searchEntries(
-                    query, jlpt, pos, PageRequest.of(0, 20 - results.size()));
-            for (DictionaryEntry entry : fuzzy) {
-                if (results.stream().noneMatch(e -> e.getId().equals(entry.getId()))) {
-                    results.add(entry);
-                }
-            }
-        }
-        return results;
-    }
-
-    private List<WordDetailDto> mapEntriesToDtos(List<DictionaryEntry> entries, PosCategory targetCategory) {
-        List<WordDetailDto> dtos = new ArrayList<>();
+        List<DictionaryEntry> entries = fetchEntriesInOrder(orderedIds);
+        Map<String, KanjiEntry> kanjiMap = loadKanjiMap(entries);
+        List<WordSummaryDto> summaries = new ArrayList<>(entries.size());
         for (DictionaryEntry entry : entries) {
-            dtos.add(mapToWordDetail(entry, targetCategory));
+            summaries.add(mapToWordSummary(entry, category, kanjiMap));
         }
-        return dtos;
+        return summaries;
+    }
+
+    private List<DictionaryEntry> fetchEntriesInOrder(List<Long> orderedIds) {
+        if (orderedIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<DictionaryEntry> fetched = entryRepository.findAllByIdIn(orderedIds);
+        if (fetched == null || fetched.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<Long, DictionaryEntry> byId = fetched.stream()
+                .collect(Collectors.toMap(DictionaryEntry::getId, e -> e, (first, second) -> first));
+
+        List<DictionaryEntry> ordered = new ArrayList<>(orderedIds.size());
+        for (Long id : orderedIds) {
+            DictionaryEntry entry = byId.get(id);
+            if (entry != null) {
+                ordered.add(entry);
+            }
+        }
+        return ordered;
+    }
+
+    private Map<String, KanjiEntry> loadKanjiMap(Collection<DictionaryEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<String> allKanjiChars = new LinkedHashSet<>();
+        for (DictionaryEntry entry : entries) {
+            allKanjiChars.addAll(extractKanjiSet(extractPrimaryKanji(entry)));
+        }
+        if (allKanjiChars.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<KanjiEntry> kanjiEntries = kanjiEntryRepository.findByCharacterTextIn(allKanjiChars);
+        if (kanjiEntries == null || kanjiEntries.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return kanjiEntries.stream()
+                .collect(Collectors.toMap(KanjiEntry::getCharacterText, k -> k, (k1, k2) -> k1));
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
+    @Cacheable(
+            cacheNames = CacheConfig.WORD_DETAIL,
+            key = "#id",
+            condition = "#id != null && #id > 0"
+    )
     public WordDetailDto getWordDetail(Long id) {
         if (id == null || id <= 0) {
             throw new ResourceNotFoundException("Invalid dictionary entry ID: " + id);
         }
         DictionaryEntry entry = entryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dictionary entry not found: " + id));
-        return mapToWordDetail(entry);
+        Map<String, KanjiEntry> kanjiMap = loadKanjiMap(List.of(entry));
+        return mapToWordDetail(entry, PosCategory.ALL, kanjiMap);
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(
+            cacheNames = CacheConfig.WORD_SUGGEST,
+            key = "#query.trim().toLowerCase()",
+            condition = "#query != null && !#query.trim().isEmpty()"
+    )
     public List<SuggestionDto> getSuggestions(String query) {
         String cleanQuery = (query != null) ? query.trim() : "";
         if (cleanQuery.isEmpty()) {
             return Collections.emptyList();
         }
-
-        List<Object[]> rawList = entryRepository.findSuggestionsRaw(cleanQuery, PageRequest.of(0, 8));
-        Map<String, SuggestionDto> map = new LinkedHashMap<>();
-
-        for (Object[] row : rawList) {
-            String form = (String) row[0];
-            String reading = (String) row[1];
-            String romaji = (String) row[2];
-            String meaning = (String) row[3];
-            Long id = (Long) row[4];
-
-            if (!map.containsKey(form)) {
-                map.put(form, SuggestionDto.builder()
-                        .id(id)
-                        .term(form)
-                        .reading(reading)
-                        .romaji(romaji)
-                        .meaning(meaning)
-                        .build());
-            }
-        }
-
-        return new ArrayList<>(map.values());
+        return searchBackend.getSuggestions(cleanQuery, DEFAULT_SUGGESTION_LIMIT);
     }
 
     @Override
     @Transactional
+    @Cacheable(
+            cacheNames = CacheConfig.KANJI_DETAIL,
+            key = "#character.substring(0, 1)",
+            condition = "#character != null && !#character.isEmpty()",
+            unless = "#result == null || #result.strokeCount == null"
+    )
     public KanjiBreakdownDto getKanjiDetail(String character) {
+        return resolveKanjiDetail(character);
+    }
+
+    private KanjiBreakdownDto resolveKanjiDetail(String character) {
         if (character == null || character.isEmpty()) {
             return null;
         }
         String ch = character.substring(0, 1);
 
-        // 1. Check local database
         Optional<KanjiEntry> opt = kanjiEntryRepository.findByCharacterText(ch);
         if (opt.isPresent()) {
             return mapKanjiToDto(opt.get());
         }
 
-        // 2. Hybrid fallback: Fetch from external API and auto-cache to local DB
+        return fetchExternalOrDefaultKanji(ch);
+    }
+
+    private KanjiBreakdownDto fetchExternalOrDefaultKanji(String ch) {
         if (kanjiExternalApiService != null) {
             Optional<KanjiEntry> externalOpt = kanjiExternalApiService.fetchAndCacheKanji(ch);
             if (externalOpt.isPresent()) {
@@ -168,12 +202,11 @@ public class DictionaryServiceImpl implements DictionaryService {
             }
         }
 
-        // 3. Fallback for completely unknown symbols or offline
         return KanjiBreakdownDto.builder()
                 .character(ch)
                 .strokeCount(null)
                 .jlptLevel("Hán tự")
-                .hanViet(deriveSingleHanViet(ch))
+                .hanViet("")
                 .onReadings("-")
                 .kunReadings("-")
                 .meaning("Chữ Hán trong hệ thống chữ viết tiếng Nhật.")
@@ -182,16 +215,17 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.TRENDING_KANJI, key = "'default'")
     public List<KanjiBreakdownDto> getTrendingKanji() {
         List<KanjiEntry> trending = kanjiEntryRepository.findTopTrendingKanji(PageRequest.of(0, 4));
         if (trending.isEmpty()) {
-            return List.of(
-                    getKanjiDetail("桜"),
-                    getKanjiDetail("雨"),
-                    getKanjiDetail("木"),
-                    getKanjiDetail("日"));
+            return new ArrayList<>(List.of(
+                    resolveKanjiDetail("桜"),
+                    resolveKanjiDetail("雨"),
+                    resolveKanjiDetail("木"),
+                    resolveKanjiDetail("日")));
         }
-        return trending.stream().map(this::mapKanjiToDto).collect(Collectors.toList());
+        return trending.stream().map(this::mapKanjiToDto).collect(Collectors.toCollection(ArrayList::new));
     }
 
     private KanjiBreakdownDto mapKanjiToDto(KanjiEntry k) {
@@ -206,11 +240,41 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .build();
     }
 
-    private WordDetailDto mapToWordDetail(DictionaryEntry entry) {
-        return mapToWordDetail(entry, PosCategory.ALL);
+    private WordSummaryDto mapToWordSummary(
+            DictionaryEntry entry,
+            PosCategory targetCategory,
+            Map<String, KanjiEntry> kanjiMap
+    ) {
+        String kanji = extractPrimaryKanji(entry);
+        DictionaryReading primaryReading = extractPrimaryReading(entry);
+        String hiragana = primaryReading != null ? primaryReading.getReading() : "";
+        String romaji = primaryReading != null ? primaryReading.getRomaji() : "";
+
+        List<WordSenseDto> senseDtos = mapSenses(entry.getSenses());
+        String primaryMeaning = resolvePrimaryMeaning(senseDtos);
+        String pos = resolvePrimaryPos(senseDtos, targetCategory);
+        String jlptStr = entry.getJlptLevel() != null ? "N" + entry.getJlptLevel() : "N/A";
+
+        return WordSummaryDto.builder()
+                .id(entry.getId())
+                .kanji(kanji)
+                .hiragana(hiragana)
+                .romaji(romaji)
+                .hanViet(buildHanVietString(kanji, kanjiMap))
+                .pitchAccent(PitchAccentFormatter.format(primaryReading))
+                .jlptLevel(jlptStr)
+                .partOfSpeech(pos)
+                .primaryMeaning(primaryMeaning)
+                .senseCount(senseDtos.size())
+                .furiganaSegments(buildFuriganaSegments(kanji, hiragana))
+                .build();
     }
 
-    private WordDetailDto mapToWordDetail(DictionaryEntry entry, PosCategory targetCategory) {
+    private WordDetailDto mapToWordDetail(
+            DictionaryEntry entry,
+            PosCategory targetCategory,
+            Map<String, KanjiEntry> kanjiMap
+    ) {
         String kanji = extractPrimaryKanji(entry);
         DictionaryReading primaryReading = extractPrimaryReading(entry);
         String hiragana = primaryReading != null ? primaryReading.getReading() : "";
@@ -222,9 +286,9 @@ public class DictionaryServiceImpl implements DictionaryService {
         String pos = resolvePrimaryPos(senseDtos, targetCategory);
 
         String jlptStr = entry.getJlptLevel() != null ? "N" + entry.getJlptLevel() : "N/A";
-        String hanViet = deriveHanViet(kanji);
+        String hanViet = buildHanVietString(kanji, kanjiMap);
 
-        List<KanjiBreakdownDto> kanjiList = extractKanjiBreakdown(kanji);
+        List<KanjiBreakdownDto> kanjiList = extractKanjiBreakdown(kanji, kanjiMap);
         List<ExampleSentenceDto> exampleDtos = mapExamples(entry.getExamples());
         List<FuriganaSegmentDto> segments = buildFuriganaSegments(kanji, hiragana);
 
@@ -279,7 +343,7 @@ public class DictionaryServiceImpl implements DictionaryService {
                 ? sense.getPosCategories().stream()
                         .filter(PosCategory::isStorable)
                         .map(Enum::name)
-                        .toList()
+                        .collect(Collectors.toCollection(ArrayList::new))
                 : Collections.emptyList();
         List<String> viGlosses = extractGlossesByLanguage(sense, "vi");
         List<String> enGlosses = extractGlossesByLanguage(sense, "en");
@@ -303,7 +367,7 @@ public class DictionaryServiceImpl implements DictionaryService {
         return sense.getGlosses().stream()
                 .filter(g -> langCode.equalsIgnoreCase(g.getLanguageCode()))
                 .map(SenseGloss::getMeaning)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private String resolveSenseMeaning(List<String> viGlosses,
@@ -379,31 +443,19 @@ public class DictionaryServiceImpl implements DictionaryService {
         return dtos;
     }
 
-    private List<KanjiBreakdownDto> extractKanjiBreakdown(String text) {
-        if (text == null || text.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Set<String> kanjiChars = new LinkedHashSet<>();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (isKanji(c)) {
-                kanjiChars.add(String.valueOf(c));
-            }
-        }
+    private List<KanjiBreakdownDto> extractKanjiBreakdown(String text, Map<String, KanjiEntry> kanjiMap) {
+        Set<String> kanjiChars = extractKanjiSet(text);
         if (kanjiChars.isEmpty()) {
             return Collections.emptyList();
         }
 
-        Map<String, KanjiEntry> map = kanjiEntryRepository.findByCharacterTextIn(kanjiChars).stream()
-                .collect(Collectors.toMap(KanjiEntry::getCharacterText, k -> k, (k1, k2) -> k1));
-
-        List<KanjiBreakdownDto> list = new ArrayList<>();
+        List<KanjiBreakdownDto> list = new ArrayList<>(kanjiChars.size());
         for (String ch : kanjiChars) {
-            KanjiEntry entry = map.get(ch);
+            KanjiEntry entry = kanjiMap.get(ch);
             if (entry != null) {
                 list.add(mapKanjiToDto(entry));
             } else {
-                list.add(getKanjiDetail(ch));
+                list.add(fetchExternalOrDefaultKanji(ch));
             }
         }
         return list;
@@ -415,30 +467,10 @@ public class DictionaryServiceImpl implements DictionaryService {
                 || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A;
     }
 
-    private String deriveSingleHanViet(String ch) {
-        Optional<KanjiEntry> opt = kanjiEntryRepository.findByCharacterText(ch);
-        if (opt.isPresent()) {
-            return opt.get().getHanViet().split(" ")[0];
-        }
-        return "";
-    }
-
-    private String deriveHanViet(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-        Set<String> kanjiChars = extractKanjiSet(text);
-        if (kanjiChars.isEmpty()) {
-            return "";
-        }
-
-        Map<String, KanjiEntry> map = kanjiEntryRepository.findByCharacterTextIn(kanjiChars).stream()
-                .collect(Collectors.toMap(KanjiEntry::getCharacterText, k -> k, (k1, k2) -> k1));
-
-        return buildHanVietString(text, map);
-    }
-
     private Set<String> extractKanjiSet(String text) {
+        if (text == null || text.isEmpty()) {
+            return Collections.emptySet();
+        }
         Set<String> kanjiChars = new LinkedHashSet<>();
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -450,6 +482,9 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     private String buildHanVietString(String text, Map<String, KanjiEntry> map) {
+        if (text == null || text.isEmpty() || map.isEmpty()) {
+            return "";
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -524,21 +559,6 @@ public class DictionaryServiceImpl implements DictionaryService {
         if (jlpt == null || jlpt.equalsIgnoreCase("all")) {
             return null;
         }
-        if (jlpt.equalsIgnoreCase("N5")) {
-            return (byte) 5;
-        }
-        if (jlpt.equalsIgnoreCase("N4")) {
-            return (byte) 4;
-        }
-        if (jlpt.equalsIgnoreCase("N3")) {
-            return (byte) 3;
-        }
-        if (jlpt.equalsIgnoreCase("N2")) {
-            return (byte) 2;
-        }
-        if (jlpt.equalsIgnoreCase("N1")) {
-            return (byte) 1;
-        }
-        return null;
+        return JLPT_LEVEL_MAP.get(jlpt.toUpperCase(Locale.ROOT));
     }
 }

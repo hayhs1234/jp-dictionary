@@ -4,6 +4,7 @@ import com.jpdictionary.common.response.ApiResponse;
 import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
 import com.jpdictionary.dictionary.dto.SuggestionDto;
 import com.jpdictionary.dictionary.dto.WordDetailDto;
+import com.jpdictionary.dictionary.dto.WordSummaryDto;
 import com.jpdictionary.dictionary.service.DictionaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +24,12 @@ public class DictionaryController {
     private final DictionaryService dictionaryService;
 
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<List<WordDetailDto>>> search(
+    public ResponseEntity<ApiResponse<List<WordSummaryDto>>> search(
             @RequestParam(name = "q", required = false) String query,
             @RequestParam(name = "jlpt", required = false) String jlpt,
             @RequestParam(name = "type", required = false) String type
     ) {
-        List<WordDetailDto> results = dictionaryService.search(query, jlpt, type);
+        List<WordSummaryDto> results = dictionaryService.search(query, jlpt, type);
         return ResponseEntity.ok(ApiResponse.success(results));
     }
 

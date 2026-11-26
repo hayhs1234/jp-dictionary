@@ -2,6 +2,7 @@ package com.jpdictionary;
 
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
+import com.jpdictionary.dictionary.repository.DictionarySearchIndexRepository;
 import com.jpdictionary.dictionary.repository.KanjiEntryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +18,9 @@ class JpDictionaryApplicationTests {
 
     @MockitoBean
     private DictionaryFormRepository dictionaryFormRepository;
+
+    @MockitoBean
+    private DictionarySearchIndexRepository dictionarySearchIndexRepository;
 
     @MockitoBean
     private KanjiEntryRepository kanjiEntryRepository;

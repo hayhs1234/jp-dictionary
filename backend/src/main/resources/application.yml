@@ -3,6 +3,12 @@ spring:
     name: jp-dictionary-backend
   profiles:
     active: dev
+  cache:
+    type: ${CACHE_TYPE:caffeine}
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 # Server configuration
 server:
@@ -19,6 +25,9 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+  health:
+    redis:
+      enabled: ${REDIS_HEALTH_ENABLED:false}
 
 # SpringDoc OpenAPI configuration
 springdoc:
@@ -29,9 +38,20 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
 
-# Application-specific custom properties (JWT, etc.)
+# Application-specific custom properties (JWT, Search Engine, etc.)
 app:
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration-ms: 86400000 # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
+  search:
+    engine: ${SEARCH_ENGINE:mysql} # 'mysql' | 'meilisearch'
+    meilisearch:
+      base-url: ${MEILISEARCH_URL:http://localhost:7700}
+      api-key: ${MEILISEARCH_API_KEY:}
+      index-name: ${MEILISEARCH_INDEX:dictionary_entries}
+      connect-timeout-ms: 1500
+      read-timeout-ms: 2500
+      fallback-on-error: true
+      sync-batch-size: 1000
+      sync-interval-ms: 30000

@@ -1,13 +1,12 @@
 package com.jpdictionary.dictionary.repository;
 
 import com.jpdictionary.dictionary.entity.DictionaryEntry;
-import com.jpdictionary.dictionary.enums.PosCategory;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,50 +19,49 @@ public interface DictionaryEntryRepository extends JpaRepository<DictionaryEntry
             + "WHERE e.id = :id")
     Optional<DictionaryEntry> findByIdWithFormsAndReadings(@Param("id") Long id);
 
-    @Query("SELECT DISTINCT e FROM DictionaryEntry e "
-            + "JOIN e.forms f "
-            + "LEFT JOIN e.readings r "
-            + "LEFT JOIN e.senses s "
-            + "LEFT JOIN s.posCategories pc "
-            + "WHERE (f.writtenForm = :term OR r.reading = :term OR LOWER(r.romaji) = LOWER(:term)) "
-            + "AND (:jlptLevel IS NULL OR e.jlptLevel = :jlptLevel) "
-            + "AND (:posCategory IS NULL OR pc = :posCategory)")
-    List<DictionaryEntry> findExactMatches(
-            @Param("term") String term,
-            @Param("jlptLevel") Byte jlptLevel,
-            @Param("posCategory") PosCategory posCategory
-    );
+    List<DictionaryEntry> findAllByIdIn(Collection<Long> ids);
 
-    @Query("SELECT DISTINCT e FROM DictionaryEntry e "
-            + "LEFT JOIN e.forms f "
-            + "LEFT JOIN e.readings r "
-            + "LEFT JOIN e.senses s "
-            + "LEFT JOIN s.posCategories pc "
-            + "LEFT JOIN s.glosses g "
-            + "WHERE (:query IS NULL OR :query = '' "
-            + "   OR LOWER(f.writtenForm) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "   OR LOWER(r.reading) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "   OR LOWER(r.romaji) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "   OR LOWER(g.meaning) LIKE LOWER(CONCAT('%', :query, '%'))) "
-            + "AND (:jlptLevel IS NULL OR e.jlptLevel = :jlptLevel) "
-            + "AND (:posCategory IS NULL OR pc = :posCategory)")
-    List<DictionaryEntry> searchEntries(
-            @Param("query") String query,
+    @Query(value = "(SELECT f.entry_id AS id "
+            + " FROM dictionary_forms f "
+            + " INNER JOIN dictionary_entries e ON e.id = f.entry_id "
+            + " WHERE f.written_form IN (:terms) "
+            + "   AND (:jlptLevel IS NULL OR e.jlpt_level = :jlptLevel) "
+            + "   AND (:posCategory IS NULL OR EXISTS ("
+            + "       SELECT 1 FROM dictionary_senses s "
+            + "       INNER JOIN dictionary_sense_pos_categories pc ON pc.sense_id = s.id "
+            + "       WHERE s.entry_id = e.id AND pc.pos_category = :posCategory)) "
+            + " ORDER BY f.is_primary DESC, COALESCE(e.frequency_rank, 999999) ASC, f.entry_id ASC "
+            + " LIMIT :limit) "
+            + "UNION "
+            + "(SELECT r.entry_id AS id "
+            + " FROM dictionary_readings r "
+            + " INNER JOIN dictionary_entries e ON e.id = r.entry_id "
+            + " WHERE r.reading IN (:terms) "
+            + "   AND (:jlptLevel IS NULL OR e.jlpt_level = :jlptLevel) "
+            + "   AND (:posCategory IS NULL OR EXISTS ("
+            + "       SELECT 1 FROM dictionary_senses s "
+            + "       INNER JOIN dictionary_sense_pos_categories pc ON pc.sense_id = s.id "
+            + "       WHERE s.entry_id = e.id AND pc.pos_category = :posCategory)) "
+            + " ORDER BY r.is_primary DESC, COALESCE(e.frequency_rank, 999999) ASC, r.entry_id ASC "
+            + " LIMIT :limit) "
+            + "UNION "
+            + "(SELECT r.entry_id AS id "
+            + " FROM dictionary_readings r "
+            + " INNER JOIN dictionary_entries e ON e.id = r.entry_id "
+            + " WHERE r.romaji IN (:terms) "
+            + "   AND (:jlptLevel IS NULL OR e.jlpt_level = :jlptLevel) "
+            + "   AND (:posCategory IS NULL OR EXISTS ("
+            + "       SELECT 1 FROM dictionary_senses s "
+            + "       INNER JOIN dictionary_sense_pos_categories pc ON pc.sense_id = s.id "
+            + "       WHERE s.entry_id = e.id AND pc.pos_category = :posCategory)) "
+            + " ORDER BY r.is_primary DESC, COALESCE(e.frequency_rank, 999999) ASC, r.entry_id ASC "
+            + " LIMIT :limit) "
+            + "LIMIT :limit",
+            nativeQuery = true)
+    List<Long> findExactMatchIdsByTerms(
+            @Param("terms") Collection<String> terms,
             @Param("jlptLevel") Byte jlptLevel,
-            @Param("posCategory") PosCategory posCategory,
-            Pageable pageable
+            @Param("posCategory") String posCategory,
+            @Param("limit") int limit
     );
-
-    @Query("SELECT DISTINCT f.writtenForm, r.reading, r.romaji, g.meaning, e.id "
-            + "FROM DictionaryEntry e "
-            + "JOIN e.forms f "
-            + "LEFT JOIN e.readings r "
-            + "LEFT JOIN e.senses s "
-            + "LEFT JOIN s.glosses g "
-            + "WHERE f.isPrimary = true "
-            + "AND (LOWER(f.writtenForm) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "  OR LOWER(r.reading) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "  OR LOWER(r.romaji) LIKE LOWER(CONCAT('%', :query, '%')) "
-            + "  OR LOWER(g.meaning) LIKE LOWER(CONCAT('%', :query, '%')))")
-    List<Object[]> findSuggestionsRaw(@Param("query") String query, Pageable pageable);
 }

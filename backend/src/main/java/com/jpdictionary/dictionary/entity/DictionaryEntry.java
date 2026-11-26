@@ -15,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public class DictionaryEntry {
     @Column(name = "jlpt_level")
     private Byte jlptLevel;
 
+    @Column(name = "frequency_rank")
+    private Integer frequencyRank;
+
     @Column(name = "source_code", length = 50)
     private String sourceCode;
 
@@ -50,25 +54,30 @@ public class DictionaryEntry {
 
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<DictionaryForm> forms = new ArrayList<>();
 
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<DictionaryReading> readings = new ArrayList<>();
 
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("senseOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<DictionarySense> senses = new ArrayList<>();
 
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @Builder.Default
     private List<ExampleSentence> examples = new ArrayList<>();
 
     @OneToMany(mappedBy = "entry", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 50)
     @Builder.Default
     private List<DictionarySynonym> synonyms = new ArrayList<>();
 }

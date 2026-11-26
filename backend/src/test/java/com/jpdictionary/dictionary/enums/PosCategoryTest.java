@@ -3,6 +3,7 @@ package com.jpdictionary.dictionary.enums;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +67,15 @@ class PosCategoryTest {
         assertEquals(PosCategory.ADVERB, PosCategory.fromCode("adverb"));
         assertEquals(PosCategory.OTHER, PosCategory.fromCode("OTHER"));
         assertEquals(PosCategory.ALL, PosCategory.fromCode("unknown-code"));
+    }
+
+    @Test
+    @DisplayName("Should encode and decode POS bitmasks round-trip")
+    void testBitMaskRoundTrip() {
+        int mask = PosCategory.toBitMask(Set.of(PosCategory.NOUN, PosCategory.VERB, PosCategory.ALL));
+        assertEquals(PosCategory.NOUN.getBitMask() | PosCategory.VERB.getBitMask(), mask);
+        assertEquals(List.of("NOUN", "VERB"), PosCategory.fromBitMask(mask));
+        assertEquals(List.of(), PosCategory.fromBitMask(0));
     }
 }
 

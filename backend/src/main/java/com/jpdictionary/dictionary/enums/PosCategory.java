@@ -3,7 +3,9 @@ package com.jpdictionary.dictionary.enums;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -13,22 +15,56 @@ import java.util.stream.Collectors;
 @Getter
 @Slf4j
 public enum PosCategory {
-    ALL("all", "Tất cả", List.of()),
-    NOUN("noun", "Danh từ", List.of("n", "ctr", "pref")),
-    VERB("verb", "Động từ", List.of("v1", "v5*", "vs", "vk", "vz", "aux-v")),
-    ADJECTIVE("adj", "Tính từ", List.of("adj-i", "adj-na", "adj-no", "adj-pn", "adj-t", "adj-f")),
-    ADVERB("adverb", "Phó từ", List.of("adv", "adv-to")),
-    IDIOM("idiom", "Quán dụng ngữ", List.of("id", "exp")),
-    OTHER("other", "Khác", List.of());
+    ALL("all", "Tất cả", List.of(), 0),
+    NOUN("noun", "Danh từ", List.of("n", "ctr", "pref"), 1),
+    VERB("verb", "Động từ", List.of("v1", "v5*", "vs", "vk", "vz", "aux-v"), 2),
+    ADJECTIVE("adj", "Tính từ", List.of("adj-i", "adj-na", "adj-no", "adj-pn", "adj-t", "adj-f"), 4),
+    ADVERB("adverb", "Phó từ", List.of("adv", "adv-to"), 8),
+    IDIOM("idiom", "Quán dụng ngữ", List.of("id", "exp"), 16),
+    OTHER("other", "Khác", List.of(), 32);
 
     private final String code;
     private final String displayNameVi;
     private final List<String> standardPrefixes;
+    private final int bitMask;
 
-    PosCategory(String code, String displayNameVi, List<String> standardPrefixes) {
+    PosCategory(String code, String displayNameVi, List<String> standardPrefixes, int bitMask) {
         this.code = code;
         this.displayNameVi = displayNameVi;
         this.standardPrefixes = standardPrefixes;
+        this.bitMask = bitMask;
+    }
+
+    /**
+     * Combine a collection of storable PosCategory values into a single bitmask.
+     */
+    public static int toBitMask(Collection<PosCategory> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return 0;
+        }
+        int mask = 0;
+        for (PosCategory cat : categories) {
+            if (cat != null && cat.isStorable()) {
+                mask |= cat.getBitMask();
+            }
+        }
+        return mask;
+    }
+
+    /**
+     * Decode a stored POS bitmask back into storable PosCategory enum names.
+     */
+    public static List<String> fromBitMask(int posMask) {
+        if (posMask <= 0) {
+            return List.of();
+        }
+        List<String> categories = new ArrayList<>();
+        for (PosCategory cat : values()) {
+            if (cat.isStorable() && (posMask & cat.bitMask) != 0) {
+                categories.add(cat.name());
+            }
+        }
+        return categories;
     }
 
     /**

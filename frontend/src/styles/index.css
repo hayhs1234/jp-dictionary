@@ -27,6 +27,16 @@ rt {
     linear-gradient(to bottom, transparent 49%, #e2beba 49%, #e2beba 51%, transparent 51%);
 }
 
+/* Subtle Japanese Seigaiha (wave) & Shoji accents for Washi surfaces */
+.seigaiha-pattern {
+  background-color: #f0f5f0;
+  background-image:
+    radial-gradient(circle at 100% 150%, #f0f5f0 24%, rgba(226, 190, 186, 0.35) 25%, rgba(226, 190, 186, 0.35) 28%, #f0f5f0 29%, #f0f5f0 36%, rgba(226, 190, 186, 0.2) 36%, rgba(226, 190, 186, 0.2) 40%, transparent 40%, transparent),
+    radial-gradient(circle at 0 150%, #f0f5f0 24%, rgba(226, 190, 186, 0.35) 25%, rgba(226, 190, 186, 0.35) 28%, #f0f5f0 29%, #f0f5f0 36%, rgba(226, 190, 186, 0.2) 36%, rgba(226, 190, 186, 0.2) 40%, transparent 40%, transparent),
+    radial-gradient(circle at 50% 100%, #f6fbf5 10%, rgba(226, 190, 186, 0.35) 11%, rgba(226, 190, 186, 0.35) 23%, #f0f5f0 24%, #f0f5f0 30%, rgba(226, 190, 186, 0.25) 31%, rgba(226, 190, 186, 0.25) 43%, #f0f5f0 44%, #f0f5f0 50%, rgba(226, 190, 186, 0.2) 51%, rgba(226, 190, 186, 0.2) 63%, #f0f5f0 64%, #f0f5f0 71%, transparent 71%, transparent);
+  background-size: 64px 32px;
+}
+
 /* Material Symbols font icon rendering */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';

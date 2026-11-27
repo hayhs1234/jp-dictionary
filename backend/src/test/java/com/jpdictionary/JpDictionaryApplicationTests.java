@@ -1,5 +1,6 @@
 package com.jpdictionary;
 
+import com.jpdictionary.auth.repository.UserRepository;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
 import com.jpdictionary.dictionary.repository.DictionarySearchIndexRepository;
@@ -12,6 +13,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest
 @ActiveProfiles("test")
 class JpDictionaryApplicationTests {
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @MockitoBean
     private DictionaryEntryRepository dictionaryEntryRepository;

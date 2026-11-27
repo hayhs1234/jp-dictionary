@@ -1,5 +1,6 @@
 package com.jpdictionary.dictionary.service.search;
 
+import com.jpdictionary.auth.repository.UserRepository;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
 import com.jpdictionary.dictionary.repository.DictionarySearchIndexRepository;
@@ -28,6 +29,9 @@ class MeilisearchContextWiringTest {
 
     @Autowired
     private MeilisearchSyncService syncService;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @MockitoBean
     private MeilisearchClient meilisearchClient;

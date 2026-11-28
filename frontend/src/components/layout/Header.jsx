@@ -129,14 +129,24 @@ export default function Header() {
           {isLoading ? (
             <div className="w-24 h-9 rounded-lg bg-surface-container animate-pulse ml-1" />
           ) : !isAuthenticated ? (
-            <Link
-              to="/login"
-              state={{ from: location }}
-              className="ml-1 bg-primary hover:bg-primary-container text-on-primary px-3.5 py-1.5 rounded-lg text-label-md font-label-md font-semibold flex items-center space-x-1.5 shadow-sm transition-colors"
-            >
-              <Icon name="login" className="text-lg" />
-              <span>Đăng nhập</span>
-            </Link>
+            <div className="flex items-center space-x-2 ml-1">
+              <Link
+                to="/register"
+                state={{ from: location }}
+                className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-outline-variant text-primary hover:bg-primary-fixed/40 text-label-md font-label-md font-semibold transition-colors"
+              >
+                <Icon name="person_add" className="text-lg" />
+                <span>Đăng ký</span>
+              </Link>
+              <Link
+                to="/login"
+                state={{ from: location }}
+                className="bg-primary hover:bg-primary-container text-on-primary px-3.5 py-1.5 rounded-lg text-label-md font-label-md font-semibold flex items-center space-x-1.5 shadow-sm transition-colors"
+              >
+                <Icon name="login" className="text-lg" />
+                <span>Đăng nhập</span>
+              </Link>
+            </div>
           ) : (
             <div className="relative ml-1" ref={menuRef}>
               <button

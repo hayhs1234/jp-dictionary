@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage.jsx';
 import SearchPage from '../pages/SearchPage.jsx';
 import KanjiPage from '../pages/KanjiPage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
+import RegisterPage from '../pages/RegisterPage.jsx';
 import ProfilePage from '../pages/ProfilePage.jsx';
 import AdminUsersPage from '../pages/AdminUsersPage.jsx';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
@@ -17,6 +18,7 @@ export default function AppRouter() {
         <Route path="search" element={<SearchPage />} />
         <Route path="kanji" element={<KanjiPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
         <Route
           path="profile"
           element={

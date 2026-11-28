@@ -32,3 +32,8 @@ target/
 *.log
 .DS_Store
 Thumbs.db
+
+### Local Environment ###
+.env
+.env.*
+!.env.example

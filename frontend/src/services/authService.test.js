@@ -37,6 +37,57 @@ describe('authService unit tests', () => {
     assert.equal(result.user.role, 'USER');
   });
 
+  test('register, verifyRegistrationOtp, and resendRegistrationOtp call expected endpoints', async () => {
+    const calls = [];
+    axiosClient.post = async (url, body) => {
+      calls.push({ url, body });
+      if (url === '/auth/register') {
+        return {
+          success: true,
+          data: { email: 'new@gmail.com', expiresInSeconds: 300, resendCooldownSeconds: 60 },
+        };
+      }
+      if (url === '/auth/register/resend-otp') {
+        return {
+          success: true,
+          data: { email: 'new@gmail.com', expiresInSeconds: 300, resendCooldownSeconds: 60 },
+        };
+      }
+      return {
+        success: true,
+        data: {
+          accessToken: 'reg-jwt',
+          tokenType: 'Bearer',
+          user: { username: 'new_user', role: 'USER', jlptTarget: 'N4' },
+        },
+      };
+    };
+
+    const dispatch = await authService.register({
+      username: 'new_user',
+      email: 'new@gmail.com',
+      password: 'Password1',
+      displayName: 'New User',
+      jlptTarget: 'N4',
+    });
+    assert.equal(dispatch.email, 'new@gmail.com');
+    assert.equal(dispatch.expiresInSeconds, 300);
+
+    const resent = await authService.resendRegistrationOtp({ email: 'new@gmail.com' });
+    assert.equal(resent.resendCooldownSeconds, 60);
+
+    const verified = await authService.verifyRegistrationOtp({
+      email: 'new@gmail.com',
+      otp: '123456',
+    });
+    assert.equal(verified.accessToken, 'reg-jwt');
+    assert.equal(verified.user.jlptTarget, 'N4');
+    assert.deepEqual(
+      calls.map((c) => c.url),
+      ['/auth/register', '/auth/register/resend-otp', '/auth/register/verify-otp']
+    );
+  });
+
   test('getCurrentUser, updateProfile, and getAdminUsers unwrap ApiResponse payloads', async () => {
     axiosClient.get = async (url) => {
       if (url === '/auth/me') {

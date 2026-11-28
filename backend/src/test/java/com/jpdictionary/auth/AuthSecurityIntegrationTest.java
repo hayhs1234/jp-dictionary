@@ -2,9 +2,12 @@ package com.jpdictionary.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jpdictionary.auth.entity.PendingRegistration;
 import com.jpdictionary.auth.entity.User;
 import com.jpdictionary.auth.enums.Role;
+import com.jpdictionary.auth.repository.PendingRegistrationRepository;
 import com.jpdictionary.auth.repository.UserRepository;
+import com.jpdictionary.auth.service.OtpEmailService;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
 import com.jpdictionary.dictionary.repository.DictionarySearchIndexRepository;
@@ -25,10 +28,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import org.mockito.ArgumentCaptor;
+
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -36,158 +45,268 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "app.search-index.sync-on-startup=false"
+                "app.search-index.sync-on-startup=false"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class AuthSecurityIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+        @Autowired
+        private ObjectMapper objectMapper;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+        @Autowired
+        private PasswordEncoder passwordEncoder;
 
-    @MockitoBean
-    private UserRepository userRepository;
+        @MockitoBean
+        private UserRepository userRepository;
 
-    @MockitoBean
-    private DictionaryService dictionaryService;
+        @MockitoBean
+        private PendingRegistrationRepository pendingRegistrationRepository;
 
-    @MockitoBean
-    private DictionaryEntryRepository dictionaryEntryRepository;
+        @MockitoBean
+        private OtpEmailService otpEmailService;
 
-    @MockitoBean
-    private DictionaryFormRepository dictionaryFormRepository;
+        @MockitoBean
+        private DictionaryService dictionaryService;
 
-    @MockitoBean
-    private DictionarySearchIndexRepository dictionarySearchIndexRepository;
+        @MockitoBean
+        private DictionaryEntryRepository dictionaryEntryRepository;
 
-    @MockitoBean
-    private KanjiEntryRepository kanjiEntryRepository;
+        @MockitoBean
+        private DictionaryFormRepository dictionaryFormRepository;
 
-    private User standardUser;
-    private User adminUser;
+        @MockitoBean
+        private DictionarySearchIndexRepository dictionarySearchIndexRepository;
 
-    @BeforeEach
-    void setUpUsers() {
-        standardUser = User.builder()
-                .id(1L)
-                .username("komorebi_user")
-                .email("user@komorebi.jp")
-                .passwordHash(passwordEncoder.encode("User@123"))
-                .displayName("Minh Anh")
-                .jlptTarget("N3")
-                .role(Role.USER)
-                .active(true)
-                .build();
+        @MockitoBean
+        private KanjiEntryRepository kanjiEntryRepository;
 
-        adminUser = User.builder()
-                .id(2L)
-                .username("komorebi_admin")
-                .email("admin@komorebi.jp")
-                .passwordHash(passwordEncoder.encode("Admin@123"))
-                .displayName("Admin Komorebi")
-                .jlptTarget("N1")
-                .role(Role.ADMIN)
-                .active(true)
-                .build();
+        private User standardUser;
+        private User adminUser;
 
-        when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("komorebi_user", "komorebi_user"))
-                .thenReturn(Optional.of(standardUser));
-        when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("user@komorebi.jp", "user@komorebi.jp"))
-                .thenReturn(Optional.of(standardUser));
-        when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("komorebi_admin", "komorebi_admin"))
-                .thenReturn(Optional.of(adminUser));
-        when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("admin@komorebi.jp", "admin@komorebi.jp"))
-                .thenReturn(Optional.of(adminUser));
-        when(userRepository.findAll(any(Sort.class)))
-                .thenReturn(List.of(standardUser, adminUser));
-        when(dictionaryService.getTrendingKanji()).thenReturn(List.of());
-    }
+        @BeforeEach
+        void setUpUsers() {
+                standardUser = User.builder()
+                                .id(1L)
+                                .username("komorebi_user")
+                                .email("user@komorebi.jp")
+                                .passwordHash(passwordEncoder.encode("User@123"))
+                                .displayName("Minh Anh")
+                                .jlptTarget("N3")
+                                .role(Role.USER)
+                                .active(true)
+                                .build();
 
-    @Test
-    @DisplayName("Public dictionary endpoints work without auth while /auth/me requires JWT")
-    void testPublicAndProtectedBoundaries() throws Exception {
-        mockMvc.perform(get("/dictionary/trending"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                adminUser = User.builder()
+                                .id(2L)
+                                .username("komorebi_admin")
+                                .email("admin@komorebi.jp")
+                                .passwordHash(passwordEncoder.encode("Admin@123"))
+                                .displayName("Admin Komorebi")
+                                .jlptTarget("N1")
+                                .role(Role.ADMIN)
+                                .active(true)
+                                .build();
 
-        mockMvc.perform(get("/auth/me"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
-    }
+                when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("komorebi_user", "komorebi_user"))
+                                .thenReturn(Optional.of(standardUser));
+                when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("user@komorebi.jp", "user@komorebi.jp"))
+                                .thenReturn(Optional.of(standardUser));
+                when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("komorebi_admin", "komorebi_admin"))
+                                .thenReturn(Optional.of(adminUser));
+                when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("admin@komorebi.jp", "admin@komorebi.jp"))
+                                .thenReturn(Optional.of(adminUser));
+                when(userRepository.findAll(any(Sort.class)))
+                                .thenReturn(List.of(standardUser, adminUser));
+                when(dictionaryService.getTrendingKanji()).thenReturn(List.of());
+        }
 
-    @Test
-    @DisplayName("Users can login by username or email and wrong credentials return 401")
-    void testLoginByUsernameOrEmail() throws Exception {
-        mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"identifier\":\"komorebi_user\",\"password\":\"User@123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.data.user.username").value("komorebi_user"))
-                .andExpect(jsonPath("$.data.user.role").value("USER"));
+        @Test
+        @DisplayName("Public dictionary endpoints work without auth while /auth/me requires JWT")
+        void testPublicAndProtectedBoundaries() throws Exception {
+                mockMvc.perform(get("/dictionary/trending"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true));
 
-        mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"identifier\":\"user@komorebi.jp\",\"password\":\"User@123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.user.email").value("user@komorebi.jp"));
+                mockMvc.perform(get("/auth/me"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.success").value(false));
+        }
 
-        mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"identifier\":\"komorebi_user\",\"password\":\"WrongPass\"}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false));
-    }
+        @Test
+        @DisplayName("Users can login by username or email and wrong credentials return 401")
+        void testLoginByUsernameOrEmail() throws Exception {
+                mockMvc.perform(post("/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"identifier\":\"komorebi_user\",\"password\":\"User@123\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                                .andExpect(jsonPath("$.data.user.username").value("komorebi_user"))
+                                .andExpect(jsonPath("$.data.user.role").value("USER"));
 
-    @Test
-    @DisplayName("RBAC enforces USER vs ADMIN roles and revokes token on logout")
-    void testRbacAndLogoutRevocation() throws Exception {
-        String userToken = loginAndExtractToken("komorebi_user", "User@123");
-        String adminToken = loginAndExtractToken("admin@komorebi.jp", "Admin@123");
+                mockMvc.perform(post("/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"identifier\":\"user@komorebi.jp\",\"password\":\"User@123\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.user.email").value("user@komorebi.jp"));
 
-        mockMvc.perform(get("/auth/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("USER"));
+                mockMvc.perform(post("/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"identifier\":\"komorebi_user\",\"password\":\"WrongPass\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.success").value(false));
+        }
 
-        mockMvc.perform(get("/admin/users")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false));
+        @Test
+        @DisplayName("RBAC enforces USER vs ADMIN roles and revokes token on logout")
+        void testRbacAndLogoutRevocation() throws Exception {
+                String userToken = loginAndExtractToken("komorebi_user", "User@123");
+                String adminToken = loginAndExtractToken("admin@komorebi.jp", "Admin@123");
 
-        mockMvc.perform(get("/admin/users")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2));
+                mockMvc.perform(get("/auth/me")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.role").value("USER"));
 
-        mockMvc.perform(post("/auth/logout")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                mockMvc.perform(get("/admin/users")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.success").value(false));
 
-        mockMvc.perform(get("/auth/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
-                .andExpect(status().isUnauthorized());
-    }
+                mockMvc.perform(get("/admin/users")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.length()").value(2));
 
-    private String loginAndExtractToken(String identifier, String password) throws Exception {
-        String body = objectMapper.writeValueAsString(
-                java.util.Map.of("identifier", identifier, "password", password)
-        );
-        MvcResult result = mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andReturn();
-        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        return root.path("data").path("accessToken").asText();
-    }
+                mockMvc.perform(post("/auth/logout")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true));
+
+                mockMvc.perform(get("/auth/me")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                                .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @DisplayName("Users can register with email OTP verification and receive working USER JWT")
+        void testRegistrationAndOtpVerificationFlow() throws Exception {
+                AtomicReference<PendingRegistration> storedPending = new AtomicReference<>();
+                AtomicReference<User> storedUser = new AtomicReference<>();
+
+                when(userRepository.existsByEmailIgnoreCase("newuser@gmail.com"))
+                                .thenAnswer(inv -> storedUser.get() != null);
+                when(userRepository.existsByUsernameIgnoreCase("new_learner"))
+                                .thenAnswer(inv -> storedUser.get() != null);
+                when(pendingRegistrationRepository.findByEmailIgnoreCase("newuser@gmail.com"))
+                                .thenAnswer(inv -> Optional.ofNullable(storedPending.get()));
+                when(pendingRegistrationRepository.save(any(PendingRegistration.class))).thenAnswer(inv -> {
+                        PendingRegistration pending = inv.getArgument(0);
+                        if (pending.getId() == null) {
+                                pending.setId(10L);
+                        }
+                        storedPending.set(pending);
+                        return pending;
+                });
+                when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+                        User user = inv.getArgument(0);
+                        user.setId(99L);
+                        storedUser.set(user);
+                        return user;
+                });
+                when(userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase("new_learner", "new_learner"))
+                                .thenAnswer(inv -> Optional.ofNullable(storedUser.get()));
+
+                ArgumentCaptor<String> otpCaptor = ArgumentCaptor.forClass(String.class);
+                doNothing().when(otpEmailService)
+                                .sendRegistrationOtp(eq("newuser@gmail.com"), eq("Tanaka"), otpCaptor.capture(),
+                                                anyLong());
+
+                String registerPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                                "username", "new_learner",
+                                "email", "NewUser@gmail.com",
+                                "password", "SecurePass1",
+                                "displayName", "Tanaka",
+                                "jlptTarget", "N4"));
+
+                mockMvc.perform(post("/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(registerPayload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.data.email").value("newuser@gmail.com"));
+
+                String verifyPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                                "email", "newuser@gmail.com",
+                                "otp", otpCaptor.getValue()));
+
+                MvcResult verifyResult = mockMvc.perform(post("/auth/register/verify-otp")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(verifyPayload))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                                .andExpect(jsonPath("$.data.user.username").value("new_learner"))
+                                .andExpect(jsonPath("$.data.user.jlptTarget").value("N4"))
+                                .andExpect(jsonPath("$.data.user.role").value("USER"))
+                                .andReturn();
+
+                JsonNode root = objectMapper.readTree(verifyResult.getResponse().getContentAsString());
+                String newUserToken = root.path("data").path("accessToken").asText();
+
+                mockMvc.perform(get("/auth/me")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + newUserToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.email").value("newuser@gmail.com"));
+
+                mockMvc.perform(get("/admin/users")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + newUserToken))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Registration rejects invalid password complexity and duplicate email")
+        void testRegistrationValidationAndConflict() throws Exception {
+                String weakPasswordPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                                "username", "valid_user",
+                                "email", "valid@gmail.com",
+                                "password", "weakpass",
+                                "displayName", "Valid User"));
+
+                mockMvc.perform(post("/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(weakPasswordPayload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.data.password").isNotEmpty());
+
+                when(userRepository.existsByEmailIgnoreCase("user@komorebi.jp")).thenReturn(true);
+                String duplicateEmailPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                                "username", "another_user",
+                                "email", "user@komorebi.jp",
+                                "password", "ValidPass1",
+                                "displayName", "Valid User"));
+
+                mockMvc.perform(post("/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(duplicateEmailPayload))
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.success").value(false));
+        }
+
+        private String loginAndExtractToken(String identifier, String password) throws Exception {
+                String body = objectMapper.writeValueAsString(
+                                java.util.Map.of("identifier", identifier, "password", password));
+                MvcResult result = mockMvc.perform(post("/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                                .andExpect(status().isOk())
+                                .andReturn();
+                JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
+                return root.path("data").path("accessToken").asText();
+        }
 }
-

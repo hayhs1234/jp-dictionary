@@ -9,6 +9,22 @@ spring:
     redis:
       repositories:
         enabled: false
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 # Server configuration
 server:
@@ -55,3 +71,12 @@ app:
       fallback-on-error: true
       sync-batch-size: 1000
       sync-interval-ms: 30000
+  registration:
+    otp-length: 6
+    otp-expiration-seconds: 300
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+    max-resends: 5
+    mail:
+      from-address: ${MAIL_FROM:${MAIL_USERNAME:}}
+      from-name: ${MAIL_FROM_NAME:Komorebi Nihongo Hub}

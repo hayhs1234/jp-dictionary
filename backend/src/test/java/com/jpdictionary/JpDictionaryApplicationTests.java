@@ -1,5 +1,6 @@
 package com.jpdictionary;
 
+import com.jpdictionary.auth.repository.PendingRegistrationRepository;
 import com.jpdictionary.auth.repository.UserRepository;
 import com.jpdictionary.dictionary.repository.DictionaryEntryRepository;
 import com.jpdictionary.dictionary.repository.DictionaryFormRepository;
@@ -16,6 +17,9 @@ class JpDictionaryApplicationTests {
 
     @MockitoBean
     private UserRepository userRepository;
+
+    @MockitoBean
+    private PendingRegistrationRepository pendingRegistrationRepository;
 
     @MockitoBean
     private DictionaryEntryRepository dictionaryEntryRepository;

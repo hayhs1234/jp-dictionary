@@ -42,14 +42,29 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  const login = useCallback(async ({ identifier, password }) => {
-    const payload = await authService.login({ identifier, password });
+  const applyAuthSession = useCallback((payload) => {
     if (payload?.accessToken) {
       tokenUtils.setToken(payload.accessToken);
     }
     setUser(payload?.user || null);
     return payload?.user || null;
   }, []);
+
+  const login = useCallback(
+    async ({ identifier, password }) => {
+      const payload = await authService.login({ identifier, password });
+      return applyAuthSession(payload);
+    },
+    [applyAuthSession]
+  );
+
+  const verifyRegistrationOtp = useCallback(
+    async ({ email, otp }) => {
+      const payload = await authService.verifyRegistrationOtp({ email, otp });
+      return applyAuthSession(payload);
+    },
+    [applyAuthSession]
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -78,6 +93,7 @@ export function AuthProvider({ children }) {
     isUser: user?.role === 'USER',
     isLoading,
     login,
+    verifyRegistrationOtp,
     logout,
     refreshUser,
     updateProfile,

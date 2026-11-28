@@ -1,5 +1,6 @@
 package com.jpdictionary.dictionary;
 
+import com.jpdictionary.auth.repository.PendingRegistrationRepository;
 import com.jpdictionary.auth.repository.UserRepository;
 import com.jpdictionary.config.CacheConfig;
 import com.jpdictionary.dictionary.dto.KanjiBreakdownDto;
@@ -64,6 +65,9 @@ class DictionaryCachingIntegrationTest {
 
         @MockitoBean
         private UserRepository userRepository;
+
+        @MockitoBean
+        private PendingRegistrationRepository pendingRegistrationRepository;
 
         @MockitoBean
         private DictionaryEntryRepository entryRepository;

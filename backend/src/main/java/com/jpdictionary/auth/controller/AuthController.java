@@ -2,13 +2,19 @@ package com.jpdictionary.auth.controller;
 
 import com.jpdictionary.auth.dto.AuthResponse;
 import com.jpdictionary.auth.dto.LoginRequest;
+import com.jpdictionary.auth.dto.OtpDispatchResponse;
+import com.jpdictionary.auth.dto.RegisterRequest;
+import com.jpdictionary.auth.dto.ResendOtpRequest;
 import com.jpdictionary.auth.dto.UpdateProfileRequest;
 import com.jpdictionary.auth.dto.UserProfileDto;
+import com.jpdictionary.auth.dto.VerifyOtpRequest;
 import com.jpdictionary.auth.service.AuthService;
+import com.jpdictionary.auth.service.RegistrationService;
 import com.jpdictionary.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -26,6 +32,34 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final RegistrationService registrationService;
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<OtpDispatchResponse>> register(
+            @Valid @RequestBody RegisterRequest request
+    ) {
+        OtpDispatchResponse response = registrationService.requestRegistrationOtp(request);
+        return ResponseEntity.ok(
+                ApiResponse.success("Mã OTP xác thực đã được gửi đến email của bạn", response));
+    }
+
+    @PostMapping("/register/verify-otp")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyRegistrationOtp(
+            @Valid @RequestBody VerifyOtpRequest request
+    ) {
+        AuthResponse response = registrationService.verifyOtpAndCreateUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Đăng ký tài khoản thành công", response));
+    }
+
+    @PostMapping("/register/resend-otp")
+    public ResponseEntity<ApiResponse<OtpDispatchResponse>> resendRegistrationOtp(
+            @Valid @RequestBody ResendOtpRequest request
+    ) {
+        OtpDispatchResponse response = registrationService.resendOtp(request);
+        return ResponseEntity.ok(
+                ApiResponse.success("Mã OTP mới đã được gửi đến email của bạn", response));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {

@@ -231,7 +231,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between text-body-sm text-on-surface-variant pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-body-sm text-on-surface-variant pt-1">
             <Link
               to="/"
               className="inline-flex items-center space-x-1 text-secondary hover:text-primary font-medium transition-colors"
@@ -239,7 +239,16 @@ export default function LoginPage() {
               <Icon name="arrow_back" className="text-base" />
               <span>Quay lại tra từ điển</span>
             </Link>
-            <span className="text-label-sm text-outline">Spring Security • JWT</span>
+            <div>
+              Chưa có tài khoản?{' '}
+              <Link
+                to="/register"
+                state={{ from: location.state?.from }}
+                className="font-bold text-primary hover:text-primary-container transition-colors"
+              >
+                Đăng ký ngay
+              </Link>
+            </div>
           </div>
         </div>
       </section>

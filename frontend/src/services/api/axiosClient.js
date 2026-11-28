@@ -28,7 +28,8 @@ axiosClient.interceptors.response.use(
   (error) => {
     const status = error?.response?.status;
     const requestUrl = String(error?.config?.url || '');
-    const isAuthEndpoint = requestUrl.includes('/auth/login');
+    const isAuthEndpoint =
+      requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
 
     if (status === 401 && !isAuthEndpoint) {
       tokenUtils.removeToken();

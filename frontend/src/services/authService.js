@@ -18,6 +18,27 @@ export function extractApiError(error, fallback = 'Đã xảy ra lỗi, vui lòn
 }
 
 export const authService = {
+  async register({ username, email, password, displayName, jlptTarget }) {
+    const res = await axiosClient.post('/auth/register', {
+      username,
+      email,
+      password,
+      displayName,
+      jlptTarget,
+    });
+    return unwrapData(res);
+  },
+
+  async verifyRegistrationOtp({ email, otp }) {
+    const res = await axiosClient.post('/auth/register/verify-otp', { email, otp });
+    return unwrapData(res);
+  },
+
+  async resendRegistrationOtp({ email }) {
+    const res = await axiosClient.post('/auth/register/resend-otp', { email });
+    return unwrapData(res);
+  },
+
   async login({ identifier, password }) {
     const res = await axiosClient.post('/auth/login', { identifier, password });
     return unwrapData(res);
